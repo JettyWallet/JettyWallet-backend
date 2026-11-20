@@ -1,0 +1,19 @@
+# Dependencias
+node_modules/
+
+
+# Archivos compilados de Typescript
+dist/
+
+
+# Variables de entorno
+.env
+.env.*
+!.env.example
+
+
+# Archivos del sistema macOS
+.DS_Store
+
+
+
