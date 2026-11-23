@@ -6,7 +6,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch src/server.ts",
-    "migrate:up": "node -r dotenv/config ./node_modules/node-pg-migrate/bin/node-pg-migrate up --migrations-dir migrations --migration-file-language sql"
+    "migrate:up": "node -r dotenv/config ./node_modules/node-pg-migrate/bin/node-pg-migrate up --migrations-dir migrations --migration-file-language sql",
+    "migrate:down": "node -r dotenv/config ./node_modules/node-pg-migrate/bin/node-pg-migrate down --migrations-dir migrations --migration-file-language sql",
+    "migrate:create": "node ./node_modules/node-pg-migrate/bin/node-pg-migrate create --migrations-dir migrations --migration-file-language sql --migration-filename-format index"
   },
   "repository": {
     "type": "git",
