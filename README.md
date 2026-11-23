@@ -54,18 +54,23 @@ src/
 ├── app.ts             Arma la app de Express (sin escuchar)
 ├── server.ts          Punto de entrada: valida entorno y base, y escucha
 ├── auth/              Módulo de autenticación (rutas, controlador, servicio)
-├── config/            env.ts (variables de entorno) y database.ts (pool de PostgreSQL)
+├── wallet/            Módulo de billetera: saldos y operaciones
+├── config/            env.ts (entorno), database.ts (pool de PostgreSQL) y reglas de negocio (wallet.ts)
 ├── docs/              Configuración de Swagger
 ├── middlewares/       errorHandler y otros middlewares
 ├── routes/            index.ts (router principal en /api) y rutas de cada módulo
 └── utils/             AppError y utilidades compartidas
 tests/
 ├── setup/             Preparación de la base y del entorno de test
-├── helpers/           Utilidades para los tests
+├── helpers/           db.ts (reset de la base) y factories.ts (datos de prueba)
 └── **/*.test.ts       Tests
 ```
 
 ## Convenciones
+
+### Módulos
+
+Cada dominio tiene su carpeta en `src/` (`auth/`, `wallet/`, ...) con sus archivos `*.routes.ts`, `*.controller.ts` y `*.service.ts`. El router del módulo se registra en `src/routes/index.ts`.
 
 ### Capas de un endpoint
 
