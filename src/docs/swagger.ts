@@ -4,9 +4,9 @@ export const swaggerSpec = swaggerJsdoc({
     definition: {
         openapi: "3.0.0",
         info: {
-            title: "NexaPay API",
+            title: "JettyWallet API",
             version: "1.0.0",
-            description: "API de la billetera digital NexaPay",
+            description: "API de la billetera digital JettyWallet",
         },
     },
     apis: ["./src/routes/*.ts"],
