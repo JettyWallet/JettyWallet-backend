@@ -2,9 +2,19 @@
     de billetera en PostgreSQL y se protegen las contraseñas  */
 
 import bcrypt from "bcrypt";
-import pool from "../config/database";
 import jwt from "jsonwebtoken";
+import pool from "../config/database";
+import { env } from "../config/env";
+import { AppError } from "../utils/appError";
 
+// Código de PostgreSQL para violación de una restricción UNIQUE.
+const PG_UNIQUE_VIOLATION = "23505";
+
+const isUniqueViolation = (error: unknown): boolean =>
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === PG_UNIQUE_VIOLATION;
 
 export const registerUser = async (
     name: string,
@@ -23,7 +33,7 @@ export const registerUser = async (
         );
 
         if (existingUser.rows.length > 0) {
-            throw new Error("El email ya está registrado");
+            throw new AppError("El email ya está registrado", 409);
         }
 
         // Proteger la contraseña.
@@ -51,12 +61,20 @@ export const registerUser = async (
 
     } catch (error) {
         await client.query("ROLLBACK");
+
+        // Dos registros simultáneos con el mismo email pueden pasar la
+        // comprobación de arriba; la restricción UNIQUE frena al segundo.
+        if (isUniqueViolation(error)) {
+            throw new AppError("El email ya está registrado", 409);
+        }
+
         throw error;
 
     } finally {
         client.release();
     }
 };
+
 export const loginUser = async (
     email: string,
     password: string
@@ -73,7 +91,7 @@ export const loginUser = async (
 
     // Comprobar si el usuario existe.
     if (!user) {
-        throw new Error("Credenciales incorrectas");
+        throw new AppError("Credenciales incorrectas", 401);
     }
 
     // Comparar la contraseña con el hash almacenado.
@@ -83,11 +101,11 @@ export const loginUser = async (
     );
 
     if (!validPassword) {
-        throw new Error("Credenciales incorrectas");
+        throw new AppError("Credenciales incorrectas", 401);
     }
 
     // Obtener la clave secreta del servidor.
-    const jwtSecret = process.env.JWT_SECRET;
+    const jwtSecret = env.jwtSecret;
 
     if (!jwtSecret) {
         throw new Error("JWT_SECRET no está configurado");
