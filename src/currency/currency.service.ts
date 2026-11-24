@@ -15,6 +15,13 @@ import { AppError } from "../utils/appError";
 const BASE_CURRENCY = "USD";
 const CACHE_TTL_HOURS = 12;
 
+// Tiempo máximo de espera de cada API externa. Si se cuelga, la consulta
+// falla y se pasa al respaldo (o a la última cotización guardada).
+const FETCH_TIMEOUT_MS = 5000;
+
+const fetchWithTimeout = (url: URL): Promise<Response> =>
+    fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+
 export interface Quote {
     from: string;
     to: string;
@@ -34,7 +41,7 @@ const fetchFromCurrencyFreaks = async (codes: string[]): Promise<Record<string, 
     url.searchParams.set("apikey", env.currencyFreaksApiKey ?? "");
     url.searchParams.set("symbols", codes.join(","));
 
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url);
     if (!response.ok) throw new Error(`Currency Freaks respondió ${response.status}`);
 
     const data = (await response.json()) as { rates: Record<string, string> };
@@ -45,18 +52,41 @@ const fetchFromCurrencyFreaks = async (codes: string[]): Promise<Record<string, 
     return rates;
 };
 
-// Respaldo. En el plan gratuito de Fixer puede no estar disponible una moneda; revisar el plan antes de depender de este respaldo.
+/*  Respaldo. El plan gratuito de Fixer (100 consultas por mes) no permite
+    elegir la base: las tasas vienen relativas a EUR (1 EUR = rate X).
+    Por eso se pide también USD y se convierte cada tasa a base USD:
+
+        tasa(USD -> X) = tasa(EUR -> X) / tasa(EUR -> USD)
+
+    Ejemplo: 1 EUR = 1,16 USD y 1 EUR = 1.680 ARS  =>  1 USD = 1.448 ARS. */
 const fetchFromFixer = async (codes: string[]): Promise<Record<string, number>> => {
     const url = new URL("https://data.fixer.io/api/latest");
     url.searchParams.set("access_key", env.fixerApiKey ?? "");
-    url.searchParams.set("symbols", codes.join(","));
+    url.searchParams.set("symbols", [...codes, BASE_CURRENCY].join(","));
 
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url);
     if (!response.ok) throw new Error(`Fixer respondió ${response.status}`);
 
-    const data = (await response.json()) as { success: boolean; rates?: Record<string, number> };
+    // Fixer responde 200 también ante errores (clave inválida, límite mensual):
+    // lo que indica el error es success = false.
+    const data = (await response.json()) as {
+        success: boolean;
+        base?: string;
+        rates?: Record<string, number>;
+    };
     if (!data.success || !data.rates) throw new Error("Fixer devolvió un error");
-    return data.rates;
+
+    const fixerBase = data.base ?? "EUR";
+    const basePerUsd = fixerBase === BASE_CURRENCY ? 1 : data.rates[BASE_CURRENCY];
+    if (!(basePerUsd > 0)) throw new Error(`Fixer no devolvió la tasa de ${BASE_CURRENCY}`);
+
+    const rates: Record<string, number> = {};
+    for (const code of codes) {
+        // La base de Fixer no viene en rates (1 EUR = 1 EUR): se completa a mano.
+        const perBase = code === fixerBase ? 1 : data.rates[code];
+        if (perBase > 0) rates[code] = perBase / basePerUsd;
+    }
+    return rates;
 };
 
 const saveRates = async (rates: Record<string, number>, source: string): Promise<void> => {
