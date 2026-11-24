@@ -6,10 +6,12 @@
 import { Router } from "express";
 import authRoutes from "../auth/auth.routes";
 import healthRoutes from "./health.routes";
+import meRoutes from "./me.routes";
 
 const router = Router();
 
 router.use(healthRoutes);
 router.use("/auth", authRoutes);
+router.use(meRoutes);
 
 export default router;
