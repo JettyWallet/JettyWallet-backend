@@ -9,9 +9,20 @@ import app from "./app";
 import { env } from "./config/env";
 import { checkDatabaseConnection } from "./config/database";
 
+// Sin estas variables la API no puede funcionar: mejor no arrancar
+// que descubrirlo recién cuando alguien intenta iniciar sesión.
+const REQUIRED_ENV = {
+    DATABASE_URL: env.databaseUrl,
+    JWT_SECRET: env.jwtSecret,
+};
+
 const start = async (): Promise<void> => {
-    if (!env.databaseUrl) {
-        throw new Error("Falta la variable de entorno DATABASE_URL");
+    const missing = Object.entries(REQUIRED_ENV)
+        .filter(([, value]) => !value)
+        .map(([name]) => name);
+
+    if (missing.length > 0) {
+        throw new Error(`Faltan variables de entorno: ${missing.join(", ")}`);
     }
 
     await checkDatabaseConnection();
