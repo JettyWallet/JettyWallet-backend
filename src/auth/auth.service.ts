@@ -134,18 +134,12 @@ export const loginUser = async (
     };
 };
 
-// Devuelve el usuario por su id, sin el hash de la contraseña.
+// Devuelve el usuario por su id, o null si no existe.
 export const getUserById = async (userId: string) => {
     const result = await pool.query(
-        "SELECT id, name, email, created_at FROM users WHERE id = $1",
+        "SELECT id, name, email FROM users WHERE id = $1",
         [userId]
     );
 
-    const user = result.rows[0];
-
-    if (!user) {
-        throw new AppError("Usuario no encontrado", 404);
-    }
-
-    return user;
+    return result.rows[0] ?? null;
 };

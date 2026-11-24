@@ -56,11 +56,13 @@ export const login = async (req: Request, res: Response) => {
 };
 
 export const getMe = async (req: Request, res: Response) => {
-    if (!req.userId) {
+    const user = req.userId ? await getUserById(req.userId) : null;
+
+    // Un token válido pero de un usuario que ya no existe (por ejemplo, tras
+    // resetear la base) cuenta como sesión inválida: el front tiene que volver al login.
+    if (!user) {
         throw new AppError("Token inválido o vencido", 401);
     }
 
-    const user = await getUserById(req.userId);
-
-    res.status(200).json({ user });
+    res.status(200).json(user);
 };

@@ -91,22 +91,21 @@ describe.skipIf(!hasTestDatabase)("GET /api/me con base de datos", () => {
             .set("Authorization", `Bearer ${login.body.token}`);
 
         expect(res.status).toBe(200);
-        expect(res.body.user).toMatchObject({
+        expect(res.body).toEqual({
             id: login.body.user.id,
             name: "Ana Pérez",
             email: "ana@mail.com",
         });
-        expect(res.body.user).not.toHaveProperty("password_hash");
     });
 
-    it("si el usuario del token no existe en la base responde 404", async () => {
+    it("si el usuario del token no existe en la base responde 401", async () => {
         const token = jwt.sign({ userId: randomUUID() }, secret());
 
         const res = await request(app)
             .get("/api/me")
             .set("Authorization", `Bearer ${token}`);
 
-        expect(res.status).toBe(404);
-        expect(res.body).toEqual({ message: "Usuario no encontrado" });
+        expect(res.status).toBe(401);
+        expect(res.body).toEqual({ message: "Token inválido o vencido" });
     });
 });
