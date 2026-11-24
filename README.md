@@ -31,6 +31,10 @@ npm run dev                   # http://localhost:3000
 | `DATABASE_URL_TEST` | Base para los tests. Su nombre **debe terminar en `_test`** porque los tests la vacían |
 | `FRONTEND_URL` | Orígenes permitidos por CORS, separados por coma |
 | `JWT_SECRET` | Clave para firmar los tokens de sesión |
+| `CURRENCY_FREAKS_API_KEY` | API principal de cotizaciones |
+| `FIXER_API_KEY` | API de respaldo de cotizaciones |
+
+`DATABASE_URL` y `JWT_SECRET` son obligatorias: sin ellas el servidor no arranca.
 
 ### Scripts
 
@@ -108,6 +112,26 @@ Todas las respuestas de error tienen la forma `{ "message": "..." }`.
 - PRs chicos, hacia `dev`, con revisión del otro integrante antes de mergear.
 - El CI corre chequeo de tipos, tests y build en cada PR.
 - Todo endpoint nuevo llega con su test, su anotación `@swagger` y su fila en [docs/api.md](docs/api.md).
+
+## Deploy (Railway)
+
+La API y la base PostgreSQL viven en un mismo proyecto de Railway. La configuración del deploy está versionada en [railway.json](railway.json):
+
+1. **Build:** `npm run build`.
+2. **Antes de cada deploy:** `npm run migrate:up`. Si una migración falla, el deploy se cancela y sigue funcionando la versión anterior.
+3. **Arranque:** `npm start`.
+4. **Health check:** `GET /api/health`. Railway no manda tráfico a la versión nueva hasta que responda.
+
+Variables del servicio de la API en Railway:
+
+| Variable | Valor |
+|---|---|
+| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (referencia a la base del proyecto, por la red interna) |
+| `JWT_SECRET` | Cadena larga y aleatoria, **distinta** de la de desarrollo |
+| `FRONTEND_URL` | URL del front en Vercel (y `http://localhost:5173` si se quiere probar el front local contra producción) |
+| `NODE_ENV` | `production` |
+
+`PORT` no se carga: la asigna Railway.
 
 ## Tests
 
