@@ -115,12 +115,19 @@ Todas las respuestas de error tienen la forma `{ "message": "..." }`.
 
 ## Deploy (Railway)
 
-La API y la base PostgreSQL viven en un mismo proyecto de Railway. La configuración del deploy está versionada en [railway.json](railway.json):
+- **API en producción:** https://jettywallet-backend-production.up.railway.app/api
+- **Documentación:** https://jettywallet-backend-production.up.railway.app/api-docs
 
-1. **Build:** `npm run build`.
-2. **Antes de cada deploy:** `npm run migrate:up`. Si una migración falla, el deploy se cancela y sigue funcionando la versión anterior.
-3. **Arranque:** `npm start`.
-4. **Health check:** `GET /api/health`. Railway no manda tráfico a la versión nueva hasta que responda.
+La API y la base PostgreSQL viven en un mismo proyecto de Railway. Cada push a `dev` se deploya solo.
+
+Cómo está configurado el servicio de la API (en el panel de Railway, **Settings → Deploy**):
+
+1. **Build:** `npm run build`. Railway lo detecta solo a partir del `package.json`.
+2. **Pre-deploy command:** `npm run migrate:up`. Corre las migraciones pendientes antes de cada deploy. Si una falla, el deploy se cancela y sigue funcionando la versión anterior.
+3. **Arranque:** `npm start`, también detectado solo.
+4. **Healthcheck path:** `/api/health`. Railway no manda tráfico a la versión nueva hasta que responda.
+
+No se usa `railway.json`: Railway dejó de soportar la configuración en archivo para servicios nuevos.
 
 Variables del servicio de la API en Railway:
 

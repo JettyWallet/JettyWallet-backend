@@ -32,6 +32,24 @@ export const swaggerSpec = swaggerJsdoc({
                         message: { type: "string" },
                     },
                 },
+                User: {
+                    type: "object",
+                    properties: {
+                        id: { type: "string", format: "uuid" },
+                        name: { type: "string", example: "Ana Pérez" },
+                        email: { type: "string", example: "ana@mail.com" },
+                    },
+                },
+                AuthResponse: {
+                    type: "object",
+                    properties: {
+                        token: {
+                            type: "string",
+                            description: "JWT. Se envía como `Authorization: Bearer <token>`. Vence en 1 hora.",
+                        },
+                        user: { $ref: "#/components/schemas/User" },
+                    },
+                },
             },
         },
     },
