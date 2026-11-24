@@ -26,4 +26,6 @@ export const env = {
     frontendUrls: parseList(process.env.FRONTEND_URL, ["http://localhost:5173"]),
 
     jwtSecret: process.env.JWT_SECRET,
+    currencyFreaksApiKey: process.env.CURRENCY_FREAKS_API_KEY,
+    fixerApiKey: process.env.FIXER_API_KEY,
 };
