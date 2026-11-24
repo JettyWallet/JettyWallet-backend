@@ -18,8 +18,16 @@ const router = Router();
  *     responses:
  *       200:
  *         description: Usuario de la sesión
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
  *       401:
- *         description: Token ausente, inválido o vencido
+ *         description: Token ausente, inválido o vencido, o el usuario ya no existe
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.get("/me", authMiddleware, getMe);
 

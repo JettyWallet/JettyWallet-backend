@@ -55,7 +55,7 @@ export const registerUser = async (
         const result = await client.query(
             `INSERT INTO users (name, email, password_hash)
        VALUES ($1, $2, $3)
-       RETURNING id, name, email, created_at`,
+       RETURNING id, name, email`,
             [name, email, passwordHash]
         );
 

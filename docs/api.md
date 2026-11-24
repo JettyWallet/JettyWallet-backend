@@ -6,9 +6,9 @@ Acuerdo entre backend y frontend. **Antes de programar un endpoint, se agrega ac
 
 | Tema | Acuerdo |
 |---|---|
-| URL base | `/api`. El front configura `VITE_API_URL=http://localhost:3000/api` |
+| URL base | `/api`. El front configura `VITE_API_URL`: `http://localhost:3000/api` en local y `https://jettywallet-backend-production.up.railway.app/api` en producción |
 | Formato | JSON, propiedades en `camelCase` |
-| Autenticación | Header `Authorization: Bearer <token>` en las rutas protegidas |
+| Autenticación | Header `Authorization: Bearer <token>` en las rutas protegidas. El token vence en 1 hora. Está planificado pasar a cookie httpOnly después de la Demo 1 |
 | Errores | Siempre `{ "message": "texto para el usuario" }` |
 | Fechas | ISO 8601 en UTC: `2026-11-23T14:30:00.000Z` |
 | Monedas | `ARS`, `COP`, `EUR`, `USD` |
@@ -33,7 +33,11 @@ Acuerdo entre backend y frontend. **Antes de programar un endpoint, se agrega ac
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
 | `GET` | `/api/health` | No | Estado de la API |
-| `POST` | `/api/auth/register` | No | Crea el usuario y su billetera. Responde `201 { message, user }` (pasa a `{ token, user }` en la Fase 1) |
+| `POST` | `/api/auth/register` | No | Crea el usuario, su billetera y sus saldos (arranca con 1.000 USD). Responde `201 { token, user }`: el registro ya inicia la sesión. `409` si el email existe |
+| `POST` | `/api/auth/login` | No | Body `{ email, password }`. Responde `200 { token, user }`. `401` si las credenciales son incorrectas |
+| `GET` | `/api/me` | Sí | Responde `200 { id, name, email }`. `401` si el token falta, es inválido, venció o el usuario ya no existe |
+
+`user` en register y login tiene la misma forma que `/me`: `{ id, name, email }`.
 
 ### Planificados
 
@@ -41,9 +45,6 @@ Las formas de respuesta salen de lo que el front ya consume (`src/types/` del re
 
 | Método | Ruta | Auth | Fase | Respuesta |
 |---|---|---|---|---|
-| `POST` | `/api/auth/register` | No | 1 | `{ token, user }`. El usuario nuevo arranca con 1.000 USD |
-| `POST` | `/api/auth/login` | No | 1 | `{ token, user }` |
-| `GET` | `/api/me` | Sí | 1 | `{ id, name, email }` |
 | `GET` | `/api/wallet/summary` | Sí | 1 | `WalletSummary` (abajo) |
 | `GET` | `/api/transactions?limit=5` | Sí | 1 | `Transaction[]`, más recientes primero |
 | `GET` | `/api/currencies` | No | 2 | Monedas disponibles |

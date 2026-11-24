@@ -31,11 +31,7 @@ export const register = async (req: Request, res: Response) => {
         password
     );
 
-    res.status(201).json({
-        message: "Usuario registrado correctamente",
-        token,
-        user,
-    });
+    res.status(201).json({ token, user });
 };
 
 export const login = async (req: Request, res: Response) => {
