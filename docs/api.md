@@ -36,8 +36,14 @@ Acuerdo entre backend y frontend. **Antes de programar un endpoint, se agrega ac
 | `POST` | `/api/auth/register` | No | Crea el usuario, su billetera y sus saldos (arranca con 1.000 USD). Responde `201 { token, user }`: el registro ya inicia la sesión. `409` si el email existe |
 | `POST` | `/api/auth/login` | No | Body `{ email, password }`. Responde `200 { token, user }`. `401` si las credenciales son incorrectas |
 | `GET` | `/api/me` | Sí | Responde `200 { id, name, email }`. `401` si el token falta, es inválido, venció o el usuario ya no existe |
+| `GET` | `/api/wallet/summary` | Sí | Responde `200 WalletSummary` (abajo). Monedas ordenadas por código. Ver notas |
 
 `user` en register y login tiene la misma forma que `/me`: `{ id, name, email }`.
+
+Notas de `/api/wallet/summary`:
+- El total lo calcula el front: `Σ amount × usdRates[currency]`.
+- `usdRates` sale de la última cotización guardada. Si no hay ninguna para una moneda, se usa un valor de referencia aproximado: sirve para mostrar, no para operar.
+- `change24h` es `0` hasta que haya historial de cotizaciones.
 
 ### Planificados
 
@@ -45,7 +51,6 @@ Las formas de respuesta salen de lo que el front ya consume (`src/types/` del re
 
 | Método | Ruta | Auth | Fase | Respuesta |
 |---|---|---|---|---|
-| `GET` | `/api/wallet/summary` | Sí | 1 | `WalletSummary` (abajo) |
 | `GET` | `/api/transactions?limit=5` | Sí | 1 | `Transaction[]`, más recientes primero |
 | `GET` | `/api/currencies` | No | 2 | Monedas disponibles |
 | `GET` | `/api/rates` | No | 2 | Cotizaciones vigentes |
