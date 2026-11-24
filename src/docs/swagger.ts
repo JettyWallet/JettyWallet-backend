@@ -50,6 +50,32 @@ export const swaggerSpec = swaggerJsdoc({
                         user: { $ref: "#/components/schemas/User" },
                     },
                 },
+                WalletSummary: {
+                    type: "object",
+                    properties: {
+                        balances: {
+                            type: "array",
+                            items: {
+                                type: "object",
+                                properties: {
+                                    currency: { type: "string", example: "USD" },
+                                    amount: { type: "number", example: 1000 },
+                                },
+                            },
+                        },
+                        usdRates: {
+                            type: "object",
+                            description: "Cuántos USD vale 1 unidad de cada moneda",
+                            additionalProperties: { type: "number" },
+                            example: { ARS: 0.00069, COP: 0.00026, EUR: 1.16, USD: 1 },
+                        },
+                        change24h: {
+                            type: "number",
+                            description: "Variación del total en 24 h, en %. Por ahora siempre 0.",
+                            example: 0,
+                        },
+                    },
+                },
             },
         },
     },
@@ -57,6 +83,7 @@ export const swaggerSpec = swaggerJsdoc({
     // y en producción (dist/*.js).
     apis: [
         fromHere("../routes/*.{ts,js}"),
-        fromHere("../auth/*.routes.{ts,js}"),
+        // Rutas de cada módulo (auth/, wallet/, ...): *.routes.ts
+        fromHere("../*/*.routes.{ts,js}"),
     ],
 });
