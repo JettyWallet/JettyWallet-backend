@@ -6,7 +6,7 @@
 
 import { Request, Response } from "express";
 import { AppError } from "../utils/appError";
-import { registerUser } from "./auth.service";
+import { getUserById, loginUser, registerUser } from "./auth.service";
 
 export const register = async (req: Request, res: Response) => {
     const { name, email, password } = req.body ?? {};
@@ -25,7 +25,7 @@ export const register = async (req: Request, res: Response) => {
         );
     }
 
-    const user = await registerUser(
+    const { token, user } = await registerUser(
         name.trim(),
         email.trim().toLowerCase(),
         password
@@ -33,16 +33,36 @@ export const register = async (req: Request, res: Response) => {
 
     res.status(201).json({
         message: "Usuario registrado correctamente",
+        token,
         user,
     });
 };
 
-// Pendiente (Fase 1): conectar con loginUser y devolver { token, user }.
-export const login = (req: Request, res: Response) => {
-    const { email } = req.body ?? {};
+export const login = async (req: Request, res: Response) => {
+    const { email, password } = req.body ?? {};
 
-    res.status(200).json({
-        message: "Datos de login recibidos",
-        email,
-    });
+    if (
+        typeof email !== "string" ||
+        typeof password !== "string" ||
+        !email.trim() ||
+        !password
+    ) {
+        throw new AppError("Ingresá email y contraseña", 400);
+    }
+
+    const { token, user } = await loginUser(email.trim().toLowerCase(), password);
+
+    res.status(200).json({ token, user });
+};
+
+export const getMe = async (req: Request, res: Response) => {
+    const user = req.userId ? await getUserById(req.userId) : null;
+
+    // Un token válido pero de un usuario que ya no existe (por ejemplo, tras
+    // resetear la base) cuenta como sesión inválida: el front tiene que volver al login.
+    if (!user) {
+        throw new AppError("Token inválido o vencido", 401);
+    }
+
+    res.status(200).json(user);
 };

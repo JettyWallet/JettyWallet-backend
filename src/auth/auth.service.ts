@@ -6,9 +6,21 @@ import jwt from "jsonwebtoken";
 import pool from "../config/database";
 import { env } from "../config/env";
 import { AppError } from "../utils/appError";
+import { createInitialBalances } from "../wallet/wallet.service";
 
 // Código de PostgreSQL para violación de una restricción UNIQUE.
 const PG_UNIQUE_VIOLATION = "23505";
+
+// Firma el JWT del usuario. Se usa en register y en login.
+const signToken = (userId: string): string => {
+    const jwtSecret = env.jwtSecret;
+
+    if (!jwtSecret) {
+        throw new Error("JWT_SECRET no está configurado");
+    }
+
+    return jwt.sign({ userId }, jwtSecret, { expiresIn: "1h" });
+};
 
 const isUniqueViolation = (error: unknown): boolean =>
     typeof error === "object" &&
@@ -49,15 +61,21 @@ export const registerUser = async (
 
         const user = result.rows[0];
 
-        // Crear la billetera del usuario.
-        await client.query(
-            "INSERT INTO wallets (user_id) VALUES ($1)",
+        // Crear la billetera del usuario y sus saldos iniciales.
+        // Todo va en la misma transacción: si algo falla, no queda nada a medias.
+        const wallet = await client.query(
+            "INSERT INTO wallets (user_id) VALUES ($1) RETURNING id",
             [user.id]
         );
 
+        await createInitialBalances(client, wallet.rows[0].id);
+
         await client.query("COMMIT");
 
-        return user;
+        return {
+            token: signToken(user.id),
+            user,
+        };
 
     } catch (error) {
         await client.query("ROLLBACK");
@@ -104,19 +122,7 @@ export const loginUser = async (
         throw new AppError("Credenciales incorrectas", 401);
     }
 
-    // Obtener la clave secreta del servidor.
-    const jwtSecret = env.jwtSecret;
-
-    if (!jwtSecret) {
-        throw new Error("JWT_SECRET no está configurado");
-    }
-
-    // Generar el token de autenticación.
-    const token = jwt.sign(
-        { userId: user.id },
-        jwtSecret,
-        { expiresIn: "1h" }
-    );
+    const token = signToken(user.id);
 
     return {
         token,
@@ -126,4 +132,14 @@ export const loginUser = async (
             email: user.email
         }
     };
+};
+
+// Devuelve el usuario por su id, o null si no existe.
+export const getUserById = async (userId: string) => {
+    const result = await pool.query(
+        "SELECT id, name, email FROM users WHERE id = $1",
+        [userId]
+    );
+
+    return result.rows[0] ?? null;
 };
