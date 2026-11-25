@@ -18,6 +18,7 @@ const router = Router();
  *       moneda, se usa un valor de referencia aproximado. change24h es 0 por ahora.
  *     tags: [Billetera]
  *     security:
+ *       - cookieAuth: []
  *       - bearerAuth: []
  *     responses:
  *       200:

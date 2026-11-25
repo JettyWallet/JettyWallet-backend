@@ -8,7 +8,7 @@ Acuerdo entre backend y frontend. **Antes de programar un endpoint, se agrega ac
 |---|---|
 | URL base | `/api`. El front configura `VITE_API_URL`: `http://localhost:3000/api` en local y `https://jettywallet-backend-production.up.railway.app/api` en producción |
 | Formato | JSON, propiedades en `camelCase` |
-| Autenticación | Header `Authorization: Bearer <token>` en las rutas protegidas. El token vence en 1 hora. Está planificado pasar a cookie httpOnly después de la Demo 1 |
+| Autenticación | Cookie httpOnly `jetty_session` que setean login y register y borra logout. El front la manda con `credentials: 'include'` y nunca la lee. Vence en 1 hora. Ver "Sesión" abajo |
 | Errores | Siempre `{ "message": "texto para el usuario" }` |
 | Fechas | ISO 8601 en UTC: `2026-11-23T14:30:00.000Z` |
 | Monedas | `ARS`, `COP`, `EUR`, `USD` |
@@ -20,7 +20,8 @@ Acuerdo entre backend y frontend. **Antes de programar un endpoint, se agrega ac
 |---|---|
 | `200` / `201` | Éxito (`201` al crear) |
 | `400` | Datos inválidos o mal formados |
-| `401` | Sin token, token inválido o vencido. El front cierra la sesión |
+| `401` | Sin sesión, o sesión inválida o vencida. El front cierra la sesión |
+| `403` | Request que modifica datos (POST, PUT, PATCH, DELETE) desde un origen no permitido |
 | `404` | Recurso o ruta inexistente |
 | `409` | Conflicto (por ejemplo, email ya registrado) |
 | `422` | Datos válidos que incumplen una regla de negocio (por ejemplo, saldo insuficiente) |
@@ -33,12 +34,21 @@ Acuerdo entre backend y frontend. **Antes de programar un endpoint, se agrega ac
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
 | `GET` | `/api/health` | No | Estado de la API |
-| `POST` | `/api/auth/register` | No | Crea el usuario, su billetera y sus saldos (arranca con 1.000 USD). Responde `201 { token, user }`: el registro ya inicia la sesión. `409` si el email existe |
-| `POST` | `/api/auth/login` | No | Body `{ email, password }`. Responde `200 { token, user }`. `401` si las credenciales son incorrectas |
-| `GET` | `/api/me` | Sí | Responde `200 { id, name, email }`. `401` si el token falta, es inválido, venció o el usuario ya no existe |
+| `POST` | `/api/auth/register` | No | Crea el usuario, su billetera y sus saldos (arranca con 1.000 USD). Setea la cookie y responde `201 { user }`: el registro ya inicia la sesión. `409` si el email existe |
+| `POST` | `/api/auth/login` | No | Body `{ email, password }`. Setea la cookie y responde `200 { user }`. `401` si las credenciales son incorrectas |
+| `POST` | `/api/auth/logout` | No | Borra la cookie. Responde `204` sin cuerpo, haya sesión o no |
+| `GET` | `/api/me` | Sí | Responde `200 { id, name, email }`. `401` si no hay sesión, es inválida, venció o el usuario ya no existe |
 | `GET` | `/api/wallet/summary` | Sí | Responde `200 WalletSummary` (abajo). Monedas ordenadas por código. Ver notas |
 
 `user` en register y login tiene la misma forma que `/me`: `{ id, name, email }`.
+
+#### Sesión
+
+- Cookie `jetty_session`: `HttpOnly`, `SameSite=Lax`, `Path=/`, `Max-Age=3600`, y `Secure` en producción. Sin `Domain`: queda asociada al dominio que la recibe.
+- **Producción:** el front llama a `/api/...` en su propio dominio y Vercel lo reenvía a Railway (rewrite en `vercel.json`). `VITE_API_URL=/api`.
+- **Local:** el proxy de Vite reenvía `/api` a `http://localhost:3000`. `VITE_API_URL=/api`.
+- **CSRF:** además de `SameSite=Lax`, los POST, PUT, PATCH y DELETE con un header `Origin` que no esté en `FRONTEND_URL` responden `403`.
+- **Transición (temporal):** mientras el front termina de migrar, login y register también devuelven `token` en el body y las rutas protegidas aceptan `Authorization: Bearer <token>`. Cuando el front confirme, se quitan las dos cosas.
 
 Notas de `/api/wallet/summary`:
 - El total lo calcula el front: `Σ amount × usdRates[currency]`.

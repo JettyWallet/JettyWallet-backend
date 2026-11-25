@@ -1,7 +1,7 @@
 /*  Rutas de autenticación. Se montan en /api/auth (ver routes/index.ts). */
 
 import { Router } from "express";
-import { register, login } from "./auth.controller";
+import { register, login, logout } from "./auth.controller";
 
 const router = Router();
 
@@ -31,7 +31,10 @@ const router = Router();
  *                 example: "12345678"
  *     responses:
  *       201:
- *         description: Usuario registrado, con la sesión ya iniciada. Arranca con 1.000 USD.
+ *         description: Usuario registrado, con la sesión ya iniciada (setea la cookie jetty_session). Arranca con 1.000 USD.
+ *         headers:
+ *           Set-Cookie:
+ *             $ref: '#/components/headers/SessionCookie'
  *         content:
  *           application/json:
  *             schema:
@@ -73,7 +76,10 @@ router.post("/register", register);
  *                 example: "12345678"
  *     responses:
  *       200:
- *         description: Sesión iniciada
+ *         description: Sesión iniciada (setea la cookie jetty_session)
+ *         headers:
+ *           Set-Cookie:
+ *             $ref: '#/components/headers/SessionCookie'
  *         content:
  *           application/json:
  *             schema:
@@ -92,5 +98,18 @@ router.post("/register", register);
  *               $ref: '#/components/schemas/Error'
  */
 router.post("/login", login);
+
+/**
+ * @swagger
+ * /api/auth/logout:
+ *   post:
+ *     summary: Cierra la sesión (borra la cookie)
+ *     description: No exige sesión. Si no había, igual responde 204.
+ *     tags: [Autenticación]
+ *     responses:
+ *       204:
+ *         description: Sesión cerrada
+ */
+router.post("/logout", logout);
 
 export default router;
