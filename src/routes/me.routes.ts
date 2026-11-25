@@ -14,6 +14,7 @@ const router = Router();
  *     summary: Devuelve el usuario de la sesión
  *     tags: [Autenticación]
  *     security:
+ *       - cookieAuth: []
  *       - bearerAuth: []
  *     responses:
  *       200:

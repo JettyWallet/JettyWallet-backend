@@ -19,10 +19,26 @@ export const swaggerSpec = swaggerJsdoc({
         },
         components: {
             securitySchemes: {
+                cookieAuth: {
+                    type: "apiKey",
+                    in: "cookie",
+                    name: "jetty_session",
+                    description:
+                        "Cookie httpOnly que setean login y register. El navegador la manda sola.",
+                },
+                // Transición: se acepta hasta que el front pase a la cookie.
                 bearerAuth: {
                     type: "http",
                     scheme: "bearer",
                     bearerFormat: "JWT",
+                    description: "Temporal, mientras el front migra a la cookie.",
+                },
+            },
+            headers: {
+                SessionCookie: {
+                    description:
+                        "jetty_session=<JWT>; HttpOnly; SameSite=Lax; Secure (en producción); Path=/; Max-Age=3600",
+                    schema: { type: "string" },
                 },
             },
             schemas: {
@@ -45,7 +61,8 @@ export const swaggerSpec = swaggerJsdoc({
                     properties: {
                         token: {
                             type: "string",
-                            description: "JWT. Se envía como `Authorization: Bearer <token>`. Vence en 1 hora.",
+                            description:
+                                "Temporal: el mismo JWT de la cookie, para el front que todavía usa Bearer. Se va a quitar.",
                         },
                         user: { $ref: "#/components/schemas/User" },
                     },

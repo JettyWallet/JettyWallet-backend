@@ -7,6 +7,7 @@ import pool from "../config/database";
 import { env } from "../config/env";
 import { AppError } from "../utils/appError";
 import { createInitialBalances } from "../wallet/wallet.service";
+import { SESSION_TTL_SECONDS } from "./session";
 
 // Código de PostgreSQL para violación de una restricción UNIQUE.
 const PG_UNIQUE_VIOLATION = "23505";
@@ -19,7 +20,7 @@ const signToken = (userId: string): string => {
         throw new Error("JWT_SECRET no está configurado");
     }
 
-    return jwt.sign({ userId }, jwtSecret, { expiresIn: "1h" });
+    return jwt.sign({ userId }, jwtSecret, { expiresIn: SESSION_TTL_SECONDS });
 };
 
 const isUniqueViolation = (error: unknown): boolean =>
