@@ -28,4 +28,8 @@ export const env = {
     jwtSecret: process.env.JWT_SECRET,
     currencyFreaksApiKey: process.env.CURRENCY_FREAKS_API_KEY,
     fixerApiKey: process.env.FIXER_API_KEY,
+    awsRegion: process.env.AWS_REGION,
+    awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    sesFromEmail: process.env.SES_FROM_EMAIL,
 };
