@@ -3,7 +3,7 @@
 import { PoolClient } from "pg";
 import pool from "../config/database";
 import { WELCOME_DEPOSIT } from "../config/wallet";
-import { getUsdRates } from "../currency/usd-rates";
+import { getCurrentRates } from "../currency/currency.service";
 import { AppError } from "../utils/appError";
 
 export interface WalletSummary {
@@ -56,6 +56,10 @@ export const createInitialBalances = async (
 /*  Resumen de la billetera para el dashboard: saldo de cada moneda y
     cuántos USD vale cada una, para que el front calcule el total.
 
+    Las cotizaciones salen de getCurrentRates (se renuevan si están vencidas).
+    Si una moneda nunca tuvo cotización, no aparece en usdRates: los saldos
+    se muestran igual, pero el total no se puede calcular.
+
     change24h queda en 0 hasta que haya historial de cotizaciones. */
 export const getWalletSummary = async (userId: string): Promise<WalletSummary> => {
     const wallet = await pool.query<{ id: string }>(
@@ -86,7 +90,7 @@ export const getWalletSummary = async (userId: string): Promise<WalletSummary> =
 
     return {
         balances,
-        usdRates: await getUsdRates(balances.map((balance) => balance.currency)),
+        usdRates: (await getCurrentRates()).usdRates,
         change24h: 0,
     };
 };

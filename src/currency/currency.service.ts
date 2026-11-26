@@ -6,14 +6,20 @@
 
     Si la cotización de USD tiene más de CACHE_TTL_HOURS horas, se refresca
     desde Currency Freaks. Si esa API falla, se usa Fixer como respaldo.
-    Si ninguna responde, se usa la última cotización guardada, marcada como vencida. */
+    Si ninguna responde, se usa la última cotización guardada, marcada como vencida.
+
+    El refresco es "perezoso": no hay un proceso periódico, se dispara cuando
+    alguien pide una cotización y la guardada está vencida o falta. */
 
 import pool from "../config/database";
 import { env } from "../config/env";
 import { AppError } from "../utils/appError";
 
 const BASE_CURRENCY = "USD";
-const CACHE_TTL_HOURS = 12;
+
+// Cada cuánto se renuevan las cotizaciones. Con 1 h son ~720 consultas por mes
+// a Currency Freaks; Fixer (100 por mes) solo se usa si la principal falla.
+const CACHE_TTL_HOURS = 1;
 
 // Tiempo máximo de espera de cada API externa. Si se cuelga, la consulta
 // falla y se pasa al respaldo (o a la última cotización guardada).
@@ -103,13 +109,16 @@ const saveRates = async (rates: Record<string, number>, source: string): Promise
     }
 };
 
-// Refresca las tasas desde Currency Freaks y, si falla, desde Fixer.
-export const refreshRates = async (): Promise<void> => {
+const getActiveQuoteCurrencies = async (): Promise<string[]> => {
     const { rows } = await pool.query<{ code: string }>(
-        "SELECT code FROM currencies WHERE is_active = TRUE AND code <> $1",
+        "SELECT code FROM currencies WHERE is_active = TRUE AND code <> $1 ORDER BY code",
         [BASE_CURRENCY]
     );
-    const codes = rows.map((row) => row.code);
+    return rows.map((row) => row.code);
+};
+
+const fetchAndSaveRates = async (): Promise<void> => {
+    const codes = await getActiveQuoteCurrencies();
     if (codes.length === 0) return;
 
     try {
@@ -118,6 +127,83 @@ export const refreshRates = async (): Promise<void> => {
         console.error("Falló Currency Freaks, usando Fixer:", primaryError);
         await saveRates(await fetchFromFixer(codes), "fixer");
     }
+};
+
+// Refresco en curso. Si llegan varios pedidos juntos con la cotización vencida,
+// comparten la misma consulta a la API en vez de hacer una cada uno.
+let refreshInProgress: Promise<void> | null = null;
+
+// Refresca las tasas desde Currency Freaks y, si falla, desde Fixer.
+export const refreshRates = (): Promise<void> => {
+    refreshInProgress ??= fetchAndSaveRates().finally(() => {
+        refreshInProgress = null;
+    });
+    return refreshInProgress;
+};
+
+export interface CurrentRates {
+    // Cuántos USD vale 1 unidad de cada moneda (USD = 1).
+    usdRates: Record<string, number>;
+    // Fecha de la cotización más vieja de las devueltas; null si no hay ninguna.
+    updatedAt: Date | null;
+    // true si el refresco falló y se están usando cotizaciones vencidas.
+    stale: boolean;
+    // Monedas activas sin ninguna cotización guardada.
+    missing: string[];
+}
+
+const readStoredRates = async () => {
+    const { rows } = await pool.query<{ code: string; rate: string | null; fetched_at: Date | null }>(
+        `SELECT c.code, r.rate, r.fetched_at
+         FROM currencies c
+         LEFT JOIN exchange_rates r
+             ON r.base_currency = $1 AND r.quote_currency = c.code
+         WHERE c.is_active = TRUE AND c.code <> $1
+         ORDER BY c.code`,
+        [BASE_CURRENCY]
+    );
+    return rows;
+};
+
+/*  Cotizaciones vigentes de todas las monedas activas, expresadas como
+    "cuántos USD vale 1 unidad" (exchange_rates guarda 1 USD = rate X, así
+    que acá se invierte: 1 X = 1 / rate USD).
+
+    Si alguna falta o está vencida, intenta refrescar antes de responder.
+    Si el refresco falla, devuelve lo que haya guardado (stale = true) y
+    deja en `missing` las monedas que no tienen ninguna cotización. */
+export const getCurrentRates = async (): Promise<CurrentRates> => {
+    let rows = await readStoredRates();
+
+    const needsRefresh = rows.some((row) => !row.fetched_at || isStale(row.fetched_at));
+    if (needsRefresh) {
+        try {
+            await refreshRates();
+        } catch (error) {
+            console.error("No se pudieron actualizar las cotizaciones:", error);
+        }
+        rows = await readStoredRates();
+    }
+
+    const usdRates: Record<string, number> = { [BASE_CURRENCY]: 1 };
+    const missing: string[] = [];
+    let oldest: Date | null = null;
+
+    for (const row of rows) {
+        if (row.rate === null || row.fetched_at === null) {
+            missing.push(row.code);
+            continue;
+        }
+        usdRates[row.code] = 1 / Number(row.rate);
+        if (!oldest || row.fetched_at < oldest) oldest = row.fetched_at;
+    }
+
+    return {
+        usdRates,
+        updatedAt: oldest,
+        stale: oldest !== null && isStale(oldest),
+        missing,
+    };
 };
 
 const getUsdRate = async (code: string): Promise<{ rate: number; fetchedAt: Date } | null> => {
