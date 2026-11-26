@@ -9,6 +9,7 @@ import walletRoutes from "../wallet/wallet.routes";
 import depositRoutes from "../deposits/deposit.routes";
 import healthRoutes from "./health.routes";
 import meRoutes from "./me.routes";
+import usersRoutes from "./users.routes";
 
 const router = Router();
 
@@ -17,5 +18,6 @@ router.use("/auth", authRoutes);
 router.use(meRoutes);
 router.use("/deposits", depositRoutes);
 router.use("/wallet", walletRoutes);
+router.use(usersRoutes);
 
 export default router;
