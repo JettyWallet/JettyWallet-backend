@@ -8,6 +8,7 @@ import app from "../../src/app";
 import { SESSION_COOKIE } from "../../src/auth/session";
 import { env } from "../../src/config/env";
 import { closeDatabase, hasTestDatabase, resetDatabase } from "../helpers/db";
+import { sessionCookieHeader, sessionToken } from "../helpers/session";
 
 const validUser = {
     name: "Ana Pérez",
@@ -16,13 +17,6 @@ const validUser = {
 };
 
 const FRONT_ORIGIN = env.frontendUrls[0];
-
-// Devuelve el header Set-Cookie de la cookie de sesión (o undefined).
-const sessionCookieHeader = (res: request.Response): string | undefined => {
-    const raw = res.headers["set-cookie"] as unknown as string[] | string | undefined;
-    const cookies = Array.isArray(raw) ? raw : raw ? [raw] : [];
-    return cookies.find((cookie) => cookie.startsWith(`${SESSION_COOKIE}=`));
-};
 
 describe("sesión sin base de datos", () => {
     it("logout responde 204 y borra la cookie, aunque no haya sesión", async () => {
@@ -109,7 +103,7 @@ describe.skipIf(!hasTestDatabase)("sesión con cookie", () => {
         expect(cookie).not.toMatch(/Domain=/);
     });
 
-    it("login setea la cookie con el mismo JWT que devuelve en el body (transición)", async () => {
+    it("login setea la cookie y no devuelve el token en el body", async () => {
         await request(app).post("/api/auth/register").send(validUser);
 
         const res = await request(app)
@@ -117,7 +111,8 @@ describe.skipIf(!hasTestDatabase)("sesión con cookie", () => {
             .send({ email: validUser.email, password: validUser.password });
 
         expect(res.status).toBe(200);
-        expect(sessionCookieHeader(res)).toContain(`${SESSION_COOKIE}=${res.body.token};`);
+        expect(sessionToken(res)).toBeDefined();
+        expect(res.body).not.toHaveProperty("token");
     });
 
     it("login fallido no setea la cookie", async () => {
@@ -158,12 +153,13 @@ describe.skipIf(!hasTestDatabase)("sesión con cookie", () => {
         expect(res.body.balances).toHaveLength(4);
     });
 
-    it("si vienen cookie y Bearer, manda la cookie", async () => {
-        const browser = request.agent(app);
-        await browser.post("/api/auth/register").send(validUser).expect(201);
+    it("el token de la sesión mandado por header Bearer no se acepta", async () => {
+        const res = await request(app).post("/api/auth/register").send(validUser);
 
-        const res = await browser.get("/api/me").set("Authorization", "Bearer token-viejo-invalido");
+        const me = await request(app)
+            .get("/api/me")
+            .set("Authorization", `Bearer ${sessionToken(res)}`);
 
-        expect(res.status).toBe(200);
+        expect(me.status).toBe(401);
     });
 });

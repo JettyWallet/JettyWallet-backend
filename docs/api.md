@@ -50,7 +50,7 @@ Acuerdo entre backend y frontend. **Antes de programar un endpoint, se agrega ac
 - **Producción:** el front llama a `/api/...` en su propio dominio y Vercel lo reenvía a Railway (rewrite en `vercel.json`). `VITE_API_URL=/api`.
 - **Local:** el proxy de Vite reenvía `/api` a `http://localhost:3000`. `VITE_API_URL=/api`.
 - **CSRF:** además de `SameSite=Lax`, los POST, PUT, PATCH y DELETE con un header `Origin` que no esté en `FRONTEND_URL` responden `403`.
-- **Transición (temporal):** mientras el front termina de migrar, login y register también devuelven `token` en el body y las rutas protegidas aceptan `Authorization: Bearer <token>`. Cuando el front confirme, se quitan las dos cosas.
+- **Solo cookie:** el header `Authorization: Bearer` no se acepta, y login y register no devuelven el token en el body.
 
 Notas de `/api/wallet/summary`:
 - El total lo calcula el front: `Σ amount × usdRates[currency]`. En otra moneda Y: dividir ese total por `usdRates[Y]`.
