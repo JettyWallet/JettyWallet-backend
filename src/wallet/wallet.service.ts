@@ -94,3 +94,24 @@ export const getWalletSummary = async (userId: string): Promise<WalletSummary> =
         change24h: 0,
     };
 };
+
+/*  Id de la billetera del usuario de la sesión.
+
+    Recibe el `client` de la transacción en curso (o el pool) para que la
+    consulta forme parte de la misma operación. Todo usuario tiene billetera
+    desde el registro: si no aparece, el usuario del token ya no existe y se
+    trata como sesión inválida, igual que en /me. */
+export const findWalletId = async (
+    db: Pick<PoolClient, "query">,
+    userId: string
+): Promise<string> => {
+    const wallet = await db.query<{ id: string }>("SELECT id FROM wallets WHERE user_id = $1", [
+        userId,
+    ]);
+
+    if (wallet.rowCount === 0) {
+        throw new AppError("Token inválido o vencido", 401);
+    }
+
+    return wallet.rows[0].id;
+};

@@ -114,6 +114,39 @@ export const swaggerSpec = swaggerJsdoc({
                         },
                     },
                 },
+                Transaction: {
+                    type: "object",
+                    properties: {
+                        id: { type: "string", format: "uuid" },
+                        type: {
+                            type: "string",
+                            enum: ["deposit", "exchange", "transfer_in", "transfer_out"],
+                        },
+                        fromCurrency: {
+                            type: "string",
+                            nullable: true,
+                            description: "null en depósitos",
+                        },
+                        fromAmount: { type: "number", nullable: true, description: "null en depósitos" },
+                        toCurrency: { type: "string", example: "ARS" },
+                        toAmount: { type: "number", example: 50000 },
+                        createdAt: { type: "string", format: "date-time" },
+                    },
+                },
+                DepositResponse: {
+                    type: "object",
+                    properties: {
+                        transaction: { $ref: "#/components/schemas/Transaction" },
+                        balance: {
+                            type: "object",
+                            description: "Saldo de esa moneda después del depósito",
+                            properties: {
+                                currency: { type: "string", example: "ARS" },
+                                amount: { type: "number", example: 50000 },
+                            },
+                        },
+                    },
+                },
             },
         },
     },
