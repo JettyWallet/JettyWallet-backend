@@ -19,7 +19,6 @@ const router = Router();
  *     tags: [Billetera]
  *     security:
  *       - cookieAuth: []
- *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Resumen de la billetera

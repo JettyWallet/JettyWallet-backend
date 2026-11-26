@@ -6,6 +6,7 @@ import request from "supertest";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import app from "../../src/app";
 import { closeDatabase, hasTestDatabase, resetDatabase } from "../helpers/db";
+import { sessionToken } from "../helpers/session";
 
 const validUser = {
     name: "Ana Pérez",
@@ -20,23 +21,26 @@ describe.skipIf(!hasTestDatabase)("POST /api/auth/login", () => {
     });
     afterAll(closeDatabase);
 
-    it("con credenciales válidas devuelve token y usuario", async () => {
+    it("con credenciales válidas devuelve solo el usuario (el token va en la cookie)", async () => {
         const res = await request(app)
             .post("/api/auth/login")
             .send({ email: validUser.email, password: validUser.password });
 
         expect(res.status).toBe(200);
-        expect(typeof res.body.token).toBe("string");
-        expect(res.body.user).toMatchObject({ name: "Ana Pérez", email: "ana@mail.com" });
-        expect(res.body.user).not.toHaveProperty("password_hash");
+        expect(res.body).toEqual({
+            user: { id: expect.any(String), name: "Ana Pérez", email: "ana@mail.com" },
+        });
+        expect(sessionToken(res)).toBeDefined();
     });
 
-    it("el token contiene el id del usuario", async () => {
+    it("el token de la cookie contiene el id del usuario", async () => {
         const res = await request(app)
             .post("/api/auth/login")
             .send({ email: validUser.email, password: validUser.password });
 
-        const payload = jwt.verify(res.body.token, process.env.JWT_SECRET!) as { userId: string };
+        const payload = jwt.verify(sessionToken(res)!, process.env.JWT_SECRET!) as {
+            userId: string;
+        };
         expect(payload.userId).toBe(res.body.user.id);
     });
 

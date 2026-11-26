@@ -15,7 +15,6 @@ const router = Router();
  *     tags: [Operaciones]
  *     security:
  *       - cookieAuth: []
- *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:

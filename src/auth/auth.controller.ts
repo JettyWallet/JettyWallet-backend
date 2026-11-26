@@ -9,10 +9,8 @@ import { AppError } from "../utils/appError";
 import { getUserById, loginUser, registerUser } from "./auth.service";
 import { clearSessionCookie, setSessionCookie } from "./session";
 
-/*  TRANSICIÓN a cookie: login y register setean la cookie de sesión y, por
-    ahora, siguen devolviendo también el token en el body, para que el front
-    que todavía usa Bearer no se rompa. Cuando el front pase a la cookie
-    (su PR #9), se saca `token` de la respuesta y queda solo { user }. */
+/*  Login y register inician la sesión seteando la cookie httpOnly con el JWT.
+    El token nunca va en el body: el front no lo ve ni lo guarda. */
 
 export const register = async (req: Request, res: Response) => {
     const { name, email, password } = req.body ?? {};
@@ -38,7 +36,7 @@ export const register = async (req: Request, res: Response) => {
     );
 
     setSessionCookie(res, token);
-    res.status(201).json({ token, user });
+    res.status(201).json({ user });
 };
 
 export const login = async (req: Request, res: Response) => {
@@ -56,7 +54,7 @@ export const login = async (req: Request, res: Response) => {
     const { token, user } = await loginUser(email.trim().toLowerCase(), password);
 
     setSessionCookie(res, token);
-    res.status(200).json({ token, user });
+    res.status(200).json({ user });
 };
 
 // Cierra la sesión borrando la cookie. No exige sesión: si no hay, igual

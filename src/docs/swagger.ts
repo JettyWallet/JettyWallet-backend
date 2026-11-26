@@ -24,14 +24,7 @@ export const swaggerSpec = swaggerJsdoc({
                     in: "cookie",
                     name: "jetty_session",
                     description:
-                        "Cookie httpOnly que setean login y register. El navegador la manda sola.",
-                },
-                // Transición: se acepta hasta que el front pase a la cookie.
-                bearerAuth: {
-                    type: "http",
-                    scheme: "bearer",
-                    bearerFormat: "JWT",
-                    description: "Temporal, mientras el front migra a la cookie.",
+                        "Cookie httpOnly que setean login y register. El navegador la manda sola: para probar rutas protegidas desde acá, primero hacé login.",
                 },
             },
             headers: {
@@ -58,12 +51,8 @@ export const swaggerSpec = swaggerJsdoc({
                 },
                 AuthResponse: {
                     type: "object",
+                    description: "La sesión queda en la cookie jetty_session (header Set-Cookie).",
                     properties: {
-                        token: {
-                            type: "string",
-                            description:
-                                "Temporal: el mismo JWT de la cookie, para el front que todavía usa Bearer. Se va a quitar.",
-                        },
                         user: { $ref: "#/components/schemas/User" },
                     },
                 },

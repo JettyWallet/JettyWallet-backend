@@ -9,18 +9,19 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vites
 import app from "../../src/app";
 import { closeDatabase, hasTestDatabase, pool, resetDatabase } from "../helpers/db";
 import { mockRatesApi, seedRates } from "../helpers/rates";
+import { sessionCookie, sessionToken } from "../helpers/session";
 
-// Registra un usuario por la API (con sus saldos iniciales) y devuelve su token.
+// Registra un usuario por la API (con sus saldos iniciales) y devuelve el JWT de su cookie.
 const registerAndGetToken = async (): Promise<string> => {
     const res = await request(app)
         .post("/api/auth/register")
         .send({ name: "Ana Pérez", email: "ana@mail.com", password: "12345678" });
 
-    return res.body.token;
+    return sessionToken(res)!;
 };
 
 const getSummary = (token: string) =>
-    request(app).get("/api/wallet/summary").set("Authorization", `Bearer ${token}`);
+    request(app).get("/api/wallet/summary").set("Cookie", sessionCookie(token));
 
 describe("GET /api/wallet/summary sin base de datos", () => {
     it("sin token responde 401", async () => {
