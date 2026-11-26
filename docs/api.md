@@ -39,6 +39,7 @@ Acuerdo entre backend y frontend. **Antes de programar un endpoint, se agrega ac
 | `POST` | `/api/auth/logout` | No | Borra la cookie. Responde `204` sin cuerpo, haya sesión o no |
 | `GET` | `/api/me` | Sí | Responde `200 { id, name, email }`. `401` si no hay sesión, es inválida, venció o el usuario ya no existe |
 | `GET` | `/api/wallet/summary` | Sí | Responde `200 WalletSummary` (abajo). Monedas ordenadas por código. Ver notas |
+| `GET` | `/api/rates` | No | Responde `200 Rates` (abajo). `503` si alguna moneda no tiene cotización. Ver notas |
 
 `user` en register y login tiene la misma forma que `/me`: `{ id, name, email }`.
 
@@ -49,8 +50,6 @@ Acuerdo entre backend y frontend. **Antes de programar un endpoint, se agrega ac
 - **Local:** el proxy de Vite reenvía `/api` a `http://localhost:3000`. `VITE_API_URL=/api`.
 - **CSRF:** además de `SameSite=Lax`, los POST, PUT, PATCH y DELETE con un header `Origin` que no esté en `FRONTEND_URL` responden `403`.
 - **Transición (temporal):** mientras el front termina de migrar, login y register también devuelven `token` en el body y las rutas protegidas aceptan `Authorization: Bearer <token>`. Cuando el front confirme, se quitan las dos cosas.
-
-| `GET` | `/api/rates` | No | Responde `200 Rates` (abajo). `503` si alguna moneda no tiene cotización |
 
 Notas de `/api/wallet/summary`:
 - El total lo calcula el front: `Σ amount × usdRates[currency]`. En otra moneda Y: dividir ese total por `usdRates[Y]`.
