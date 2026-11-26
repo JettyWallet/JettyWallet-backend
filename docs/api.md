@@ -39,6 +39,7 @@ Acuerdo entre backend y frontend. **Antes de programar un endpoint, se agrega ac
 | `POST` | `/api/auth/logout` | No | Borra la cookie. Responde `204` sin cuerpo, haya sesión o no |
 | `GET` | `/api/me` | Sí | Responde `200 { id, name, email }`. `401` si no hay sesión, es inválida, venció o el usuario ya no existe |
 | `GET` | `/api/wallet/summary` | Sí | Responde `200 WalletSummary` (abajo). Monedas ordenadas por código. Ver notas |
+| `POST` | `/api/deposits` | Sí | Body `{ currency, amount }`. Responde `201 { transaction, balance }`. `400` si la moneda o el monto son inválidos, `422` si supera el máximo. Ver notas |
 
 `user` en register y login tiene la misma forma que `/me`: `{ id, name, email }`.
 
@@ -55,6 +56,12 @@ Notas de `/api/wallet/summary`:
 - `usdRates` sale de la última cotización guardada. Si no hay ninguna para una moneda, se usa un valor de referencia aproximado: sirve para mostrar, no para operar.
 - `change24h` es `0` hasta que haya historial de cotizaciones.
 
+Notas de `/api/deposits`:
+- `amount`: número mayor a 0, con hasta 2 decimales, y como máximo 1.000.000 por depósito (el saldo total no tiene ese límite). Se manda como número, no como texto.
+- `currency`: `ARS`, `COP`, `EUR` o `USD` (acepta minúsculas).
+- `transaction` tiene la forma de `Transaction` (abajo) con `type: 'deposit'` y `fromCurrency` / `fromAmount` en `null`. `balance` es el saldo de esa moneda después del depósito: sirve para actualizar la pantalla sin volver a pedir el summary.
+- **Doble clic:** cada request es un depósito nuevo. El front deshabilita el botón hasta recibir la respuesta.
+
 ### Planificados
 
 Las formas de respuesta salen de lo que el front ya consume (`src/types/` del repo del front).
@@ -64,7 +71,6 @@ Las formas de respuesta salen de lo que el front ya consume (`src/types/` del re
 | `GET` | `/api/transactions?limit=5` | Sí | 1 | `Transaction[]`, más recientes primero |
 | `GET` | `/api/currencies` | No | 2 | Monedas disponibles |
 | `GET` | `/api/rates` | No | 2 | Cotizaciones vigentes |
-| `POST` | `/api/deposits` | Sí | 2 | Depósito simulado |
 | `POST` | `/api/exchange` | Sí | 2 | Intercambio entre monedas |
 | `POST` | `/api/transfers` | Sí | 3 | Transferencia a otro usuario (por email o número de cuenta) |
 | — | `/api/savings-goals/...` | Sí | 4 | Metas de ahorro |

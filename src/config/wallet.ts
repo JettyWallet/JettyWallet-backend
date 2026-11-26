@@ -7,3 +7,9 @@ export const WELCOME_DEPOSIT = {
     amount: 1000,
     description: "Saldo de bienvenida",
 } as const;
+
+// Depósitos simulados. El máximo es por depósito, no limita el saldo total.
+export const DEPOSIT_RULES = {
+    maxAmount: 1_000_000,
+    description: "Depósito",
+} as const;
