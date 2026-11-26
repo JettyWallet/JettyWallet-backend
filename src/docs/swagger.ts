@@ -67,6 +67,27 @@ export const swaggerSpec = swaggerJsdoc({
                         user: { $ref: "#/components/schemas/User" },
                     },
                 },
+                Rates: {
+                    type: "object",
+                    properties: {
+                        base: { type: "string", example: "USD" },
+                        usdRates: {
+                            type: "object",
+                            description: "Cuántos USD vale 1 unidad de cada moneda",
+                            additionalProperties: { type: "number" },
+                            example: { ARS: 0.00069, COP: 0.00026, EUR: 1.16, USD: 1 },
+                        },
+                        updatedAt: {
+                            type: "string",
+                            format: "date-time",
+                            description: "Fecha de la cotización más vieja de la lista",
+                        },
+                        stale: {
+                            type: "boolean",
+                            description: "true si no se pudieron renovar y son de hace más de 1 hora",
+                        },
+                    },
+                },
                 WalletSummary: {
                     type: "object",
                     properties: {
