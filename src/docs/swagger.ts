@@ -136,6 +136,24 @@ export const swaggerSpec = swaggerJsdoc({
                         },
                     },
                 },
+                ExchangeResponse: {
+                    type: "object",
+                    properties: {
+                        transaction: { $ref: "#/components/schemas/Transaction" },
+                        balances: {
+                            type: "array",
+                            description:
+                                "Saldos nuevos de las dos monedas: primero la de origen, después la de destino",
+                            items: {
+                                type: "object",
+                                properties: {
+                                    currency: { type: "string", example: "USD" },
+                                    amount: { type: "number", example: 900 },
+                                },
+                            },
+                        },
+                    },
+                },
             },
         },
     },
