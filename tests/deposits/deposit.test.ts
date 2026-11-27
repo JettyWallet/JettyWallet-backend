@@ -1,13 +1,19 @@
 /*  POST /api/deposits.
     El caso sin sesión no necesita base de datos; el resto se saltea
-    si no hay DATABASE_URL_TEST configurada. */
+    si no hay DATABASE_URL_TEST configurada.
+
+    Cotizaciones de los tests (1 USD = X): EUR 0,86 · COP 3.800 · ARS 1.600.
+    Máximo por depósito: el equivalente a 1.000.000 USD (ARS 1.600.000.000). */
 
 import request from "supertest";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import app from "../../src/app";
 import { closeDatabase, hasTestDatabase, pool, resetDatabase } from "../helpers/db";
+import { HOUR_MS, seedRates } from "../helpers/rates";
 
 const validUser = { name: "Ana Pérez", email: "ana@mail.com", password: "12345678" };
+
+const RATES = { EUR: 0.86, COP: 3800, ARS: 1600 };
 
 // "Navegador" con la sesión ya iniciada: guarda la cookie y la reenvía.
 const loggedInBrowser = async () => {
@@ -40,7 +46,10 @@ describe("POST /api/deposits sin base de datos", () => {
 });
 
 describe.skipIf(!hasTestDatabase)("POST /api/deposits", () => {
-    beforeEach(resetDatabase);
+    beforeEach(async () => {
+        await resetDatabase();
+        await seedRates(RATES);
+    });
     afterAll(closeDatabase);
 
     it("suma el monto al saldo y devuelve el movimiento y el saldo nuevo", async () => {
@@ -83,23 +92,123 @@ describe.skipIf(!hasTestDatabase)("POST /api/deposits", () => {
         expect(summary.body.balances).toContainEqual({ currency: "EUR", amount: 99.99 });
     });
 
-    it("acepta exactamente el máximo (1.000.000)", async () => {
-        const browser = await loggedInBrowser();
+    describe("máximo por depósito según la moneda", () => {
+        it("en USD acepta exactamente 1.000.000", async () => {
+            const browser = await loggedInBrowser();
 
-        const res = await browser.post("/api/deposits").send({ currency: "COP", amount: 1_000_000 });
+            const res = await browser.post("/api/deposits").send({ currency: "USD", amount: 1_000_000 });
 
-        expect(res.status).toBe(201);
-    });
+            expect(res.status).toBe(201);
+        });
 
-    it("rechaza con 422 un monto mayor al máximo, sin tocar el saldo", async () => {
-        const browser = await loggedInBrowser();
+        it("en USD rechaza con 422 un centavo más, sin tocar el saldo", async () => {
+            const browser = await loggedInBrowser();
 
-        const res = await browser.post("/api/deposits").send({ currency: "COP", amount: 1_000_000.01 });
+            const res = await browser
+                .post("/api/deposits")
+                .send({ currency: "USD", amount: 1_000_000.01 });
 
-        expect(res.status).toBe(422);
-        expect(res.body).toEqual({ message: "El monto máximo por depósito es 1.000.000" });
-        expect(await balanceOf("COP")).toBe(0);
-        expect(await depositCount()).toBe(0);
+            expect(res.status).toBe(422);
+            expect(res.body).toEqual({ message: "El monto máximo por depósito es 1.000.000 USD" });
+            expect(await balanceOf("USD")).toBe(1000);
+            expect(await depositCount()).toBe(0);
+        });
+
+        it("en ARS el máximo es el equivalente a 1.000.000 USD", async () => {
+            const browser = await loggedInBrowser();
+
+            const res = await browser
+                .post("/api/deposits")
+                .send({ currency: "ARS", amount: 1_600_000_000 });
+
+            expect(res.status).toBe(201);
+            expect(res.body.balance).toEqual({ currency: "ARS", amount: 1_600_000_000 });
+        });
+
+        it("en ARS rechaza con 422 un centavo más, con el máximo en ARS en el mensaje", async () => {
+            const browser = await loggedInBrowser();
+
+            const res = await browser
+                .post("/api/deposits")
+                .send({ currency: "ARS", amount: 1_600_000_000.01 });
+
+            expect(res.status).toBe(422);
+            expect(res.body).toEqual({
+                message:
+                    "El monto máximo por depósito es 1.600.000.000 ARS (equivale a 1.000.000 USD)",
+            });
+            expect(await balanceOf("ARS")).toBe(0);
+            expect(await depositCount()).toBe(0);
+        });
+
+        it("en COP permite más de 1.000.000 (el caso que marcó el tutor)", async () => {
+            const browser = await loggedInBrowser();
+
+            const res = await browser.post("/api/deposits").send({ currency: "COP", amount: 5_000_000 });
+
+            expect(res.status).toBe(201);
+        });
+
+        it("en EUR (vale más que el USD) el máximo es menor a 1.000.000", async () => {
+            const browser = await loggedInBrowser();
+
+            const res = await browser.post("/api/deposits").send({ currency: "EUR", amount: 900_000 });
+
+            expect(res.status).toBe(422);
+            expect(res.body.message).toBe(
+                "El monto máximo por depósito es 860.000 EUR (equivale a 1.000.000 USD)"
+            );
+        });
+
+        it("el máximo se trunca a 2 decimales (nunca supera el equivalente a 1.000.000 USD)", async () => {
+            const browser = await loggedInBrowser();
+            // 1.000.000 x 0,857142857143 = 857.142,857143: el máximo es 857.142,85.
+            await pool.query(
+                "UPDATE exchange_rates SET rate = 0.857142857142857 WHERE quote_currency = 'EUR'"
+            );
+
+            const exact = await browser.post("/api/deposits").send({ currency: "EUR", amount: 857_142.85 });
+            const over = await browser.post("/api/deposits").send({ currency: "EUR", amount: 857_142.86 });
+
+            expect(exact.status).toBe(201);
+            expect(over.status).toBe(422);
+            expect(over.body.message).toBe(
+                "El monto máximo por depósito es 857.142,85 EUR (equivale a 1.000.000 USD)"
+            );
+        });
+
+        it("con cotizaciones vencidas que no se pueden renovar, usa la última guardada", async () => {
+            const browser = await loggedInBrowser();
+            await pool.query("UPDATE exchange_rates SET fetched_at = $1", [
+                new Date(Date.now() - 2 * HOUR_MS),
+            ]);
+
+            const ok = await browser.post("/api/deposits").send({ currency: "ARS", amount: 1_600_000_000 });
+            const over = await browser.post("/api/deposits").send({ currency: "ARS", amount: 1_600_000_001 });
+
+            expect(ok.status).toBe(201);
+            expect(over.status).toBe(422);
+        });
+
+        it("sin ninguna cotización para la moneda responde 503 y no toca el saldo", async () => {
+            const browser = await loggedInBrowser();
+            await pool.query("DELETE FROM exchange_rates WHERE quote_currency = 'ARS'");
+
+            const res = await browser.post("/api/deposits").send({ currency: "ARS", amount: 100 });
+
+            expect(res.status).toBe(503);
+            expect(await balanceOf("ARS")).toBe(0);
+            expect(await depositCount()).toBe(0);
+        });
+
+        it("en USD no necesita cotizaciones", async () => {
+            const browser = await loggedInBrowser();
+            await pool.query("DELETE FROM exchange_rates");
+
+            const res = await browser.post("/api/deposits").send({ currency: "USD", amount: 100 });
+
+            expect(res.status).toBe(201);
+        });
     });
 
     it.each([

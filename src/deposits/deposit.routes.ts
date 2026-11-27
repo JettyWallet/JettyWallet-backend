@@ -28,7 +28,10 @@ const router = Router();
  *                 example: ARS
  *               amount:
  *                 type: number
- *                 description: Mayor a 0, hasta 2 decimales, máximo 1.000.000 por depósito
+ *                 description: >
+ *                   Mayor a 0, hasta 2 decimales. Máximo por depósito: el equivalente
+ *                   a 1.000.000 USD según la última cotización (en ARS, 1.000.000 x
+ *                   cotización del USD en ARS)
  *                 example: 50000
  *     responses:
  *       201:
@@ -50,7 +53,13 @@ const router = Router();
  *             schema:
  *               $ref: '#/components/schemas/Error'
  *       422:
- *         description: Supera el máximo por depósito
+ *         description: Supera el máximo por depósito (el mensaje dice el máximo en esa moneda)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       503:
+ *         description: No hay cotización para la moneda (no se puede calcular el máximo)
  *         content:
  *           application/json:
  *             schema:
