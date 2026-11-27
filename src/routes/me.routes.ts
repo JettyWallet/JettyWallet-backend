@@ -15,7 +15,6 @@ const router = Router();
  *     tags: [Autenticación]
  *     security:
  *       - cookieAuth: []
- *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Usuario de la sesión
@@ -24,7 +23,7 @@ const router = Router();
  *             schema:
  *               $ref: '#/components/schemas/User'
  *       401:
- *         description: Token ausente, inválido o vencido, o el usuario ya no existe
+ *         description: Sin sesión, sesión inválida o vencida, o el usuario ya no existe
  *         content:
  *           application/json:
  *             schema:

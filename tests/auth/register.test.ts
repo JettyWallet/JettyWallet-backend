@@ -20,12 +20,9 @@ describe.skipIf(!hasTestDatabase)("POST /api/auth/register", () => {
         const res = await request(app).post("/api/auth/register").send(validUser);
 
         expect(res.status).toBe(201);
-        expect(typeof res.body.token).toBe("string");
-        // Misma forma de usuario que login y /me: solo id, name y email.
-        expect(res.body.user).toEqual({
-            id: expect.any(String),
-            name: "Ana Pérez",
-            email: "ana@mail.com",
+        // Solo el usuario, con la misma forma que login y /me. El token va en la cookie.
+        expect(res.body).toEqual({
+            user: { id: expect.any(String), name: "Ana Pérez", email: "ana@mail.com" },
         });
 
         const { rows } = await pool.query(

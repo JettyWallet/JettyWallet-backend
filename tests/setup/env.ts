@@ -16,3 +16,14 @@ if (process.env.DATABASE_URL_TEST) {
 
 // Secreto fijo para los tests de autenticación.
 process.env.JWT_SECRET ??= "secreto-solo-para-tests";
+
+// Los tests NUNCA llaman a APIs externas: no gastan el cupo mensual de las
+// APIs de cotizaciones ni dependen de internet. Las claves se vacían y fetch
+// falla siempre. El test que necesite una API la simula con vi.stubGlobal
+// (ver tests/helpers/rates.ts); al hacer vi.unstubAllGlobals vuelve este fetch.
+process.env.CURRENCY_FREAKS_API_KEY = "";
+process.env.FIXER_API_KEY = "";
+
+globalThis.fetch = async (input) => {
+    throw new Error(`fetch real deshabilitado en los tests: ${String(input)}`);
+};

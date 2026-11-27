@@ -14,12 +14,11 @@ const router = Router();
  *     summary: Saldos de la billetera y su valor en USD
  *     description: >
  *       Devuelve el saldo de cada moneda y cuántos USD vale 1 unidad de cada una,
- *       para que el front calcule el total. Si no hay cotización guardada para una
- *       moneda, se usa un valor de referencia aproximado. change24h es 0 por ahora.
+ *       para que el front calcule el total. usdRates es el mismo de /api/rates; una
+ *       moneda sin ninguna cotización no aparece. change24h es 0 por ahora.
  *     tags: [Billetera]
  *     security:
  *       - cookieAuth: []
- *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Resumen de la billetera

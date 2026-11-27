@@ -24,14 +24,7 @@ export const swaggerSpec = swaggerJsdoc({
                     in: "cookie",
                     name: "jetty_session",
                     description:
-                        "Cookie httpOnly que setean login y register. El navegador la manda sola.",
-                },
-                // Transición: se acepta hasta que el front pase a la cookie.
-                bearerAuth: {
-                    type: "http",
-                    scheme: "bearer",
-                    bearerFormat: "JWT",
-                    description: "Temporal, mientras el front migra a la cookie.",
+                        "Cookie httpOnly que setean login y register. El navegador la manda sola: para probar rutas protegidas desde acá, primero hacé login.",
                 },
             },
             headers: {
@@ -58,13 +51,30 @@ export const swaggerSpec = swaggerJsdoc({
                 },
                 AuthResponse: {
                     type: "object",
+                    description: "La sesión queda en la cookie jetty_session (header Set-Cookie).",
                     properties: {
-                        token: {
-                            type: "string",
-                            description:
-                                "Temporal: el mismo JWT de la cookie, para el front que todavía usa Bearer. Se va a quitar.",
-                        },
                         user: { $ref: "#/components/schemas/User" },
+                    },
+                },
+                Rates: {
+                    type: "object",
+                    properties: {
+                        base: { type: "string", example: "USD" },
+                        usdRates: {
+                            type: "object",
+                            description: "Cuántos USD vale 1 unidad de cada moneda",
+                            additionalProperties: { type: "number" },
+                            example: { ARS: 0.00069, COP: 0.00026, EUR: 1.16, USD: 1 },
+                        },
+                        updatedAt: {
+                            type: "string",
+                            format: "date-time",
+                            description: "Fecha de la cotización más vieja de la lista",
+                        },
+                        stale: {
+                            type: "boolean",
+                            description: "true si no se pudieron renovar y son de hace más de 1 hora",
+                        },
                     },
                 },
                 WalletSummary: {
@@ -109,6 +119,12 @@ export const swaggerSpec = swaggerJsdoc({
                         fromAmount: { type: "number", nullable: true, description: "null en depósitos" },
                         toCurrency: { type: "string", example: "ARS" },
                         toAmount: { type: "number", example: 50000 },
+                        description: {
+                            type: "string",
+                            nullable: true,
+                            description: "Texto para mostrar en el historial",
+                            example: "Depósito",
+                        },
                         createdAt: { type: "string", format: "date-time" },
                     },
                 },
@@ -122,6 +138,24 @@ export const swaggerSpec = swaggerJsdoc({
                             properties: {
                                 currency: { type: "string", example: "ARS" },
                                 amount: { type: "number", example: 50000 },
+                            },
+                        },
+                    },
+                },
+                ExchangeResponse: {
+                    type: "object",
+                    properties: {
+                        transaction: { $ref: "#/components/schemas/Transaction" },
+                        balances: {
+                            type: "array",
+                            description:
+                                "Saldos nuevos de las dos monedas: primero la de origen, después la de destino",
+                            items: {
+                                type: "object",
+                                properties: {
+                                    currency: { type: "string", example: "USD" },
+                                    amount: { type: "number", example: 900 },
+                                },
                             },
                         },
                     },

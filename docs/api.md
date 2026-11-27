@@ -39,7 +39,10 @@ Acuerdo entre backend y frontend. **Antes de programar un endpoint, se agrega ac
 | `POST` | `/api/auth/logout` | No | Borra la cookie. Responde `204` sin cuerpo, haya sesión o no |
 | `GET` | `/api/me` | Sí | Responde `200 { id, name, email }`. `401` si no hay sesión, es inválida, venció o el usuario ya no existe |
 | `GET` | `/api/wallet/summary` | Sí | Responde `200 WalletSummary` (abajo). Monedas ordenadas por código. Ver notas |
+| `GET` | `/api/rates` | No | Responde `200 Rates` (abajo). `503` si alguna moneda no tiene cotización. Ver notas |
 | `POST` | `/api/deposits` | Sí | Body `{ currency, amount }`. Responde `201 { transaction, balance }`. `400` si la moneda o el monto son inválidos, `422` si supera el máximo. Ver notas |
+| `POST` | `/api/exchange` | Sí | Body `{ fromCurrency, toCurrency, amount }`. Responde `201 { transaction, balances }`. `400` si los datos son inválidos o las monedas son iguales, `422` si no alcanza el saldo o el monto convertido da 0, `503` si no hay cotización. Ver notas |
+| `GET` | `/api/transactions` | Sí | Query opcional `limit`, `before`, `type`, `currency`. Responde `200 Transaction[]`, más recientes primero. `400` si algún parámetro es inválido. Ver notas |
 
 `user` en register y login tiene la misma forma que `/me`: `{ id, name, email }`.
 
@@ -49,12 +52,17 @@ Acuerdo entre backend y frontend. **Antes de programar un endpoint, se agrega ac
 - **Producción:** el front llama a `/api/...` en su propio dominio y Vercel lo reenvía a Railway (rewrite en `vercel.json`). `VITE_API_URL=/api`.
 - **Local:** el proxy de Vite reenvía `/api` a `http://localhost:3000`. `VITE_API_URL=/api`.
 - **CSRF:** además de `SameSite=Lax`, los POST, PUT, PATCH y DELETE con un header `Origin` que no esté en `FRONTEND_URL` responden `403`.
-- **Transición (temporal):** mientras el front termina de migrar, login y register también devuelven `token` en el body y las rutas protegidas aceptan `Authorization: Bearer <token>`. Cuando el front confirme, se quitan las dos cosas.
+- **Solo cookie:** el header `Authorization: Bearer` no se acepta, y login y register no devuelven el token en el body.
 
 Notas de `/api/wallet/summary`:
-- El total lo calcula el front: `Σ amount × usdRates[currency]`.
-- `usdRates` sale de la última cotización guardada. Si no hay ninguna para una moneda, se usa un valor de referencia aproximado: sirve para mostrar, no para operar.
+- El total lo calcula el front: `Σ amount × usdRates[currency]`. En otra moneda Y: dividir ese total por `usdRates[Y]`.
+- `usdRates` es el mismo que devuelve `/api/rates`. Si una moneda nunca tuvo cotización (las APIs externas nunca respondieron), no aparece en `usdRates`: los saldos se muestran igual, pero el total no se puede calcular.
 - `change24h` es `0` hasta que haya historial de cotizaciones.
+
+Notas de `/api/rates`:
+- `usdRates[X]` = cuántos USD vale 1 unidad de X. Para convertir un monto de X a Y: `monto × usdRates[X] / usdRates[Y]`.
+- Se renuevan cada 1 hora, cuando alguien las pide. Si las APIs externas fallan, se devuelve la última cotización guardada con `stale: true`.
+- Sirven para mostrar estimaciones. El intercambio usa la cotización del momento en que se ejecuta.
 
 Notas de `/api/deposits`:
 - `amount`: número mayor a 0, con hasta 2 decimales, y como máximo 1.000.000 por depósito (el saldo total no tiene ese límite). Se manda como número, no como texto.
@@ -62,16 +70,30 @@ Notas de `/api/deposits`:
 - `transaction` tiene la forma de `Transaction` (abajo) con `type: 'deposit'` y `fromCurrency` / `fromAmount` en `null`. `balance` es el saldo de esa moneda después del depósito: sirve para actualizar la pantalla sin volver a pedir el summary.
 - **Doble clic:** cada request es un depósito nuevo. El front deshabilita el botón hasta recibir la respuesta.
 
+Notas de `/api/exchange`:
+- `amount` está en `fromCurrency`, con las mismas reglas que el depósito (mayor a 0, hasta 2 decimales), pero **sin máximo**: el límite es el saldo disponible.
+- Lo recibido es `amount × cotización`, **truncado** a 2 decimales (nunca se redondea hacia arriba). Si da 0 (ej. 1 COP → USD), responde `422`.
+- Usa la cotización del momento en que se ejecuta, de la misma tabla que `/api/rates`: lo recibido coincide con la estimación, salvo que las cotizaciones se renueven entre que el usuario mira y confirma. Si las APIs externas fallan, usa la última guardada.
+- `transaction` tiene `type: 'exchange'`. `balances` trae los saldos nuevos de las dos monedas, primero el de origen: sirven para actualizar la pantalla sin volver a pedir el summary.
+- Sin comisión por ahora.
+- **Doble clic:** cada request es un intercambio nuevo. El front deshabilita el botón hasta recibir la respuesta.
+
+Notas de `/api/transactions`:
+- Responde un **array plano** de `Transaction` (abajo), más recientes primero. Solo los movimientos de la billetera de la sesión.
+- `limit`: entero entre 1 y 100. Por defecto, 20. El dashboard usa `?limit=5`.
+- **Paginación por cursor ("Cargar más"):** para la página siguiente, mandar en `before` el `id` del último movimiento recibido: `?limit=20&before=<id>`. Si llegan menos movimientos que `limit`, no hay más. No se repiten ni se saltean movimientos aunque entren nuevos mientras el usuario mira el historial. `400` si `before` no es un movimiento de la billetera.
+- **Filtros opcionales** (se pueden combinar entre sí y con `before`):
+  - `type`: `deposit`, `exchange`, `transfer_in` o `transfer_out`.
+  - `currency`: movimientos donde **entra o sale** esa moneda (ej. `?currency=USD` incluye un intercambio USD → EUR). Acepta minúsculas.
+- `description` trae un texto para mostrar: `"Saldo de bienvenida"`, `"Depósito"`, `"Intercambio"`.
+
 ### Planificados
 
 Las formas de respuesta salen de lo que el front ya consume (`src/types/` del repo del front).
 
 | Método | Ruta | Auth | Fase | Respuesta |
 |---|---|---|---|---|
-| `GET` | `/api/transactions?limit=5` | Sí | 1 | `Transaction[]`, más recientes primero |
 | `GET` | `/api/currencies` | No | 2 | Monedas disponibles |
-| `GET` | `/api/rates` | No | 2 | Cotizaciones vigentes |
-| `POST` | `/api/exchange` | Sí | 2 | Intercambio entre monedas |
 | `POST` | `/api/transfers` | Sí | 3 | Transferencia a otro usuario (por email o número de cuenta) |
 | — | `/api/savings-goals/...` | Sí | 4 | Metas de ahorro |
 
@@ -90,6 +112,13 @@ interface WalletSummary {
     change24h: number                      // variación del total en 24 h, en %
 }
 
+interface Rates {
+    base: 'USD'
+    usdRates: Record<CurrencyCode, number> // cuántos USD vale 1 unidad de cada moneda
+    updatedAt: string                      // ISO, cotización más vieja de la lista
+    stale: boolean                         // true si no se pudieron renovar (más de 1 h)
+}
+
 interface Transaction {
     id: string
     type: 'deposit' | 'exchange' | 'transfer_in' | 'transfer_out'
@@ -97,8 +126,7 @@ interface Transaction {
     toCurrency: CurrencyCode
     fromAmount: number | null              // null en depósitos
     toAmount: number
+    description: string | null             // texto para mostrar, ej. "Saldo de bienvenida"
     createdAt: string                      // ISO
 }
 ```
-
-> El front todavía tiene los tipos `buy` y `sell` en `Transaction`. Quedaron fuera del alcance; hay que avisarles que los reemplacen por `transfer_in` y `transfer_out`.

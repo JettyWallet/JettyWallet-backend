@@ -5,22 +5,23 @@
 import { randomUUID } from "node:crypto";
 import jwt from "jsonwebtoken";
 import request from "supertest";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import app from "../../src/app";
-import { REFERENCE_USD_RATES } from "../../src/config/rates";
 import { closeDatabase, hasTestDatabase, pool, resetDatabase } from "../helpers/db";
+import { mockRatesApi, seedRates } from "../helpers/rates";
+import { sessionCookie, sessionToken } from "../helpers/session";
 
-// Registra un usuario por la API (con sus saldos iniciales) y devuelve su token.
+// Registra un usuario por la API (con sus saldos iniciales) y devuelve el JWT de su cookie.
 const registerAndGetToken = async (): Promise<string> => {
     const res = await request(app)
         .post("/api/auth/register")
         .send({ name: "Ana Pérez", email: "ana@mail.com", password: "12345678" });
 
-    return res.body.token;
+    return sessionToken(res)!;
 };
 
 const getSummary = (token: string) =>
-    request(app).get("/api/wallet/summary").set("Authorization", `Bearer ${token}`);
+    request(app).get("/api/wallet/summary").set("Cookie", sessionCookie(token));
 
 describe("GET /api/wallet/summary sin base de datos", () => {
     it("sin token responde 401", async () => {
@@ -32,7 +33,16 @@ describe("GET /api/wallet/summary sin base de datos", () => {
 });
 
 describe.skipIf(!hasTestDatabase)("GET /api/wallet/summary", () => {
-    beforeEach(resetDatabase);
+    beforeEach(async () => {
+        await resetDatabase();
+        // Las APIs de cotizaciones están "caídas" salvo que el test diga otra cosa.
+        mockRatesApi(null);
+        vi.spyOn(console, "error").mockImplementation(() => {});
+    });
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
+    });
     afterAll(closeDatabase);
 
     it("un usuario nuevo ve 1.000 USD y el resto de las monedas en 0", async () => {
@@ -48,30 +58,33 @@ describe.skipIf(!hasTestDatabase)("GET /api/wallet/summary", () => {
         expect(res.body.change24h).toBe(0);
     });
 
-    it("sin cotizaciones guardadas usa las de referencia", async () => {
-        const res = await getSummary(await registerAndGetToken());
-
-        expect(res.body.usdRates).toEqual({
-            ARS: REFERENCE_USD_RATES.ARS,
-            COP: REFERENCE_USD_RATES.COP,
-            EUR: REFERENCE_USD_RATES.EUR,
-            USD: 1,
-        });
-    });
-
-    it("con cotización guardada la usa, invertida (1 ARS = 1/rate USD)", async () => {
+    it("usa las cotizaciones guardadas, invertidas (1 ARS = 1/rate USD)", async () => {
         const token = await registerAndGetToken();
-        await pool.query(
-            `INSERT INTO exchange_rates (base_currency, quote_currency, rate, source)
-             VALUES ('USD', 'ARS', 1250, 'test')`
-        );
+        await seedRates({ ARS: 1250, COP: 4000, EUR: 0.8 });
 
         const res = await getSummary(token);
 
         expect(res.body.usdRates.ARS).toBeCloseTo(1 / 1250, 12);
-        // Las que no están guardadas siguen usando la de referencia.
-        expect(res.body.usdRates.EUR).toBe(REFERENCE_USD_RATES.EUR);
+        expect(res.body.usdRates.COP).toBeCloseTo(1 / 4000, 12);
+        expect(res.body.usdRates.EUR).toBeCloseTo(1.25, 12);
         expect(res.body.usdRates.USD).toBe(1);
+    });
+
+    it("sin cotizaciones guardadas, las trae de la API", async () => {
+        const token = await registerAndGetToken();
+        mockRatesApi({ ARS: 1450, COP: 3850, EUR: 0.86 });
+
+        const res = await getSummary(token);
+
+        expect(res.body.usdRates.ARS).toBeCloseTo(1 / 1450, 12);
+    });
+
+    it("si nunca hubo cotizaciones y las APIs fallan, muestra los saldos con usdRates solo de USD", async () => {
+        const res = await getSummary(await registerAndGetToken());
+
+        expect(res.status).toBe(200);
+        expect(res.body.balances).toHaveLength(4);
+        expect(res.body.usdRates).toEqual({ USD: 1 });
     });
 
     it("refleja los saldos actuales de la billetera", async () => {
