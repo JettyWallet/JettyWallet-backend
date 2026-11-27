@@ -28,4 +28,5 @@ export const env = {
     jwtSecret: process.env.JWT_SECRET,
     currencyFreaksApiKey: process.env.CURRENCY_FREAKS_API_KEY,
     fixerApiKey: process.env.FIXER_API_KEY,
+    geminiApiKey: process.env.GEMINI_API_KEY,
 };
