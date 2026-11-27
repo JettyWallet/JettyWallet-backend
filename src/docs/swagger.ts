@@ -119,6 +119,12 @@ export const swaggerSpec = swaggerJsdoc({
                         fromAmount: { type: "number", nullable: true, description: "null en depósitos" },
                         toCurrency: { type: "string", example: "ARS" },
                         toAmount: { type: "number", example: 50000 },
+                        description: {
+                            type: "string",
+                            nullable: true,
+                            description: "Texto para mostrar en el historial",
+                            example: "Depósito",
+                        },
                         createdAt: { type: "string", format: "date-time" },
                     },
                 },

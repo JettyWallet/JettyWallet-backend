@@ -42,6 +42,7 @@ Acuerdo entre backend y frontend. **Antes de programar un endpoint, se agrega ac
 | `GET` | `/api/rates` | No | Responde `200 Rates` (abajo). `503` si alguna moneda no tiene cotización. Ver notas |
 | `POST` | `/api/deposits` | Sí | Body `{ currency, amount }`. Responde `201 { transaction, balance }`. `400` si la moneda o el monto son inválidos, `422` si supera el máximo. Ver notas |
 | `POST` | `/api/exchange` | Sí | Body `{ fromCurrency, toCurrency, amount }`. Responde `201 { transaction, balances }`. `400` si los datos son inválidos o las monedas son iguales, `422` si no alcanza el saldo o el monto convertido da 0, `503` si no hay cotización. Ver notas |
+| `GET` | `/api/transactions` | Sí | Query opcional `limit`, `before`, `type`, `currency`. Responde `200 Transaction[]`, más recientes primero. `400` si algún parámetro es inválido. Ver notas |
 
 `user` en register y login tiene la misma forma que `/me`: `{ id, name, email }`.
 
@@ -77,13 +78,21 @@ Notas de `/api/exchange`:
 - Sin comisión por ahora.
 - **Doble clic:** cada request es un intercambio nuevo. El front deshabilita el botón hasta recibir la respuesta.
 
+Notas de `/api/transactions`:
+- Responde un **array plano** de `Transaction` (abajo), más recientes primero. Solo los movimientos de la billetera de la sesión.
+- `limit`: entero entre 1 y 100. Por defecto, 20. El dashboard usa `?limit=5`.
+- **Paginación por cursor ("Cargar más"):** para la página siguiente, mandar en `before` el `id` del último movimiento recibido: `?limit=20&before=<id>`. Si llegan menos movimientos que `limit`, no hay más. No se repiten ni se saltean movimientos aunque entren nuevos mientras el usuario mira el historial. `400` si `before` no es un movimiento de la billetera.
+- **Filtros opcionales** (se pueden combinar entre sí y con `before`):
+  - `type`: `deposit`, `exchange`, `transfer_in` o `transfer_out`.
+  - `currency`: movimientos donde **entra o sale** esa moneda (ej. `?currency=USD` incluye un intercambio USD → EUR). Acepta minúsculas.
+- `description` trae un texto para mostrar: `"Saldo de bienvenida"`, `"Depósito"`, `"Intercambio"`.
+
 ### Planificados
 
 Las formas de respuesta salen de lo que el front ya consume (`src/types/` del repo del front).
 
 | Método | Ruta | Auth | Fase | Respuesta |
 |---|---|---|---|---|
-| `GET` | `/api/transactions?limit=5` | Sí | 1 | `Transaction[]`, más recientes primero |
 | `GET` | `/api/currencies` | No | 2 | Monedas disponibles |
 | `POST` | `/api/transfers` | Sí | 3 | Transferencia a otro usuario (por email o número de cuenta) |
 | — | `/api/savings-goals/...` | Sí | 4 | Metas de ahorro |
@@ -117,8 +126,7 @@ interface Transaction {
     toCurrency: CurrencyCode
     fromAmount: number | null              // null en depósitos
     toAmount: number
+    description: string | null             // texto para mostrar, ej. "Saldo de bienvenida"
     createdAt: string                      // ISO
 }
 ```
-
-> El front todavía tiene los tipos `buy` y `sell` en `Transaction`. Quedaron fuera del alcance; hay que avisarles que los reemplacen por `transfer_in` y `transfer_out`.
