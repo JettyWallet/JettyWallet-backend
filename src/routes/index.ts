@@ -12,6 +12,7 @@ import exchangeRoutes from "../exchange/exchange.routes";
 import transactionRoutes from "../transactions/transaction.routes";
 import healthRoutes from "./health.routes";
 import meRoutes from "./me.routes";
+import chatRoutes from "../chat/chat.routes";
 
 const router = Router();
 
@@ -23,5 +24,6 @@ router.use("/exchange", exchangeRoutes);
 router.use("/transactions", transactionRoutes);
 router.use("/wallet", walletRoutes);
 router.use("/rates", currencyRoutes);
+router.use("/chat", chatRoutes);
 
 export default router;
