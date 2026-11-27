@@ -41,6 +41,7 @@ Acuerdo entre backend y frontend. **Antes de programar un endpoint, se agrega ac
 | `GET` | `/api/wallet/summary` | Sí | Responde `200 WalletSummary` (abajo). Monedas ordenadas por código. Ver notas |
 | `GET` | `/api/rates` | No | Responde `200 Rates` (abajo). `503` si alguna moneda no tiene cotización. Ver notas |
 | `POST` | `/api/deposits` | Sí | Body `{ currency, amount }`. Responde `201 { transaction, balance }`. `400` si la moneda o el monto son inválidos, `422` si supera el máximo. Ver notas |
+| `POST` | `/api/exchange` | Sí | Body `{ fromCurrency, toCurrency, amount }`. Responde `201 { transaction, balances }`. `400` si los datos son inválidos o las monedas son iguales, `422` si no alcanza el saldo o el monto convertido da 0, `503` si no hay cotización. Ver notas |
 
 `user` en register y login tiene la misma forma que `/me`: `{ id, name, email }`.
 
@@ -68,6 +69,14 @@ Notas de `/api/deposits`:
 - `transaction` tiene la forma de `Transaction` (abajo) con `type: 'deposit'` y `fromCurrency` / `fromAmount` en `null`. `balance` es el saldo de esa moneda después del depósito: sirve para actualizar la pantalla sin volver a pedir el summary.
 - **Doble clic:** cada request es un depósito nuevo. El front deshabilita el botón hasta recibir la respuesta.
 
+Notas de `/api/exchange`:
+- `amount` está en `fromCurrency`, con las mismas reglas que el depósito (mayor a 0, hasta 2 decimales), pero **sin máximo**: el límite es el saldo disponible.
+- Lo recibido es `amount × cotización`, **truncado** a 2 decimales (nunca se redondea hacia arriba). Si da 0 (ej. 1 COP → USD), responde `422`.
+- Usa la cotización del momento en que se ejecuta, de la misma tabla que `/api/rates`: lo recibido coincide con la estimación, salvo que las cotizaciones se renueven entre que el usuario mira y confirma. Si las APIs externas fallan, usa la última guardada.
+- `transaction` tiene `type: 'exchange'`. `balances` trae los saldos nuevos de las dos monedas, primero el de origen: sirven para actualizar la pantalla sin volver a pedir el summary.
+- Sin comisión por ahora.
+- **Doble clic:** cada request es un intercambio nuevo. El front deshabilita el botón hasta recibir la respuesta.
+
 ### Planificados
 
 Las formas de respuesta salen de lo que el front ya consume (`src/types/` del repo del front).
@@ -76,7 +85,6 @@ Las formas de respuesta salen de lo que el front ya consume (`src/types/` del re
 |---|---|---|---|---|
 | `GET` | `/api/transactions?limit=5` | Sí | 1 | `Transaction[]`, más recientes primero |
 | `GET` | `/api/currencies` | No | 2 | Monedas disponibles |
-| `POST` | `/api/exchange` | Sí | 2 | Intercambio entre monedas |
 | `POST` | `/api/transfers` | Sí | 3 | Transferencia a otro usuario (por email o número de cuenta) |
 | — | `/api/savings-goals/...` | Sí | 4 | Metas de ahorro |
 

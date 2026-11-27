@@ -8,6 +8,7 @@ import authRoutes from "../auth/auth.routes";
 import currencyRoutes from "../currency/currency.routes";
 import walletRoutes from "../wallet/wallet.routes";
 import depositRoutes from "../deposits/deposit.routes";
+import exchangeRoutes from "../exchange/exchange.routes";
 import healthRoutes from "./health.routes";
 import meRoutes from "./me.routes";
 
@@ -17,6 +18,7 @@ router.use(healthRoutes);
 router.use("/auth", authRoutes);
 router.use(meRoutes);
 router.use("/deposits", depositRoutes);
+router.use("/exchange", exchangeRoutes);
 router.use("/wallet", walletRoutes);
 router.use("/rates", currencyRoutes);
 
