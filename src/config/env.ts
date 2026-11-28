@@ -28,8 +28,9 @@ export const env = {
     jwtSecret: process.env.JWT_SECRET,
     currencyFreaksApiKey: process.env.CURRENCY_FREAKS_API_KEY,
     fixerApiKey: process.env.FIXER_API_KEY,
-    awsRegion: process.env.AWS_REGION,
-    awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+
+    // Remitente de los mails de notificación (identidad verificada en SES).
+    // Las credenciales de AWS no pasan por acá: el SDK lee AWS_REGION,
+    // AWS_ACCESS_KEY_ID y AWS_SECRET_ACCESS_KEY directamente del entorno.
     sesFromEmail: process.env.SES_FROM_EMAIL,
 };

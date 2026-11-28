@@ -24,6 +24,11 @@ process.env.JWT_SECRET ??= "secreto-solo-para-tests";
 process.env.CURRENCY_FREAKS_API_KEY = "";
 process.env.FIXER_API_KEY = "";
 
+// Tampoco mandan mails reales: sin remitente, las notificaciones no envían
+// nada (ver notification.service.ts). Los tests de notificaciones usan un
+// cliente de SES simulado y setean su propio remitente.
+process.env.SES_FROM_EMAIL = "";
+
 globalThis.fetch = async (input) => {
     throw new Error(`fetch real deshabilitado en los tests: ${String(input)}`);
 };
