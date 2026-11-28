@@ -8,9 +8,11 @@ export const WELCOME_DEPOSIT = {
     description: "Saldo de bienvenida",
 } as const;
 
-// Depósitos simulados. El máximo es por depósito, no limita el saldo total.
+// Depósitos simulados. El máximo es por depósito (no limita el saldo total)
+// y está en USD: en otras monedas es su equivalente según la última cotización
+// (con 1 USD = 1.600 ARS, el máximo en ARS es 1.600.000.000).
 export const DEPOSIT_RULES = {
-    maxAmount: 1_000_000,
+    maxUsd: 1_000_000,
     description: "Depósito",
 } as const;
 

@@ -40,7 +40,7 @@ Acuerdo entre backend y frontend. **Antes de programar un endpoint, se agrega ac
 | `GET` | `/api/me` | Sí | Responde `200 { id, name, email }`. `401` si no hay sesión, es inválida, venció o el usuario ya no existe |
 | `GET` | `/api/wallet/summary` | Sí | Responde `200 WalletSummary` (abajo). Monedas ordenadas por código. Ver notas |
 | `GET` | `/api/rates` | No | Responde `200 Rates` (abajo). `503` si alguna moneda no tiene cotización. Ver notas |
-| `POST` | `/api/deposits` | Sí | Body `{ currency, amount }`. Responde `201 { transaction, balance }`. `400` si la moneda o el monto son inválidos, `422` si supera el máximo. Ver notas |
+| `POST` | `/api/deposits` | Sí | Body `{ currency, amount }`. Responde `201 { transaction, balance }`. `400` si la moneda o el monto son inválidos, `422` si supera el máximo, `503` si no hay cotización para la moneda. Ver notas |
 | `POST` | `/api/exchange` | Sí | Body `{ fromCurrency, toCurrency, amount }`. Responde `201 { transaction, balances }`. `400` si los datos son inválidos o las monedas son iguales, `422` si no alcanza el saldo o el monto convertido da 0, `503` si no hay cotización. Ver notas |
 | `GET` | `/api/transactions` | Sí | Query opcional `limit`, `before`, `type`, `currency`. Responde `200 Transaction[]`, más recientes primero. `400` si algún parámetro es inválido. Ver notas |
 
@@ -65,7 +65,10 @@ Notas de `/api/rates`:
 - Sirven para mostrar estimaciones. El intercambio usa la cotización del momento en que se ejecuta.
 
 Notas de `/api/deposits`:
-- `amount`: número mayor a 0, con hasta 2 decimales, y como máximo 1.000.000 por depósito (el saldo total no tiene ese límite). Se manda como número, no como texto.
+- `amount`: número mayor a 0, con hasta 2 decimales. Se manda como número, no como texto.
+- **Máximo por depósito: el equivalente a 1.000.000 USD** según la última cotización guardada (el saldo total no tiene límite). En USD es 1.000.000; en otra moneda X es `1.000.000 / usdRates[X]`, truncado a 2 decimales (ej. con 1 USD = 1.600 ARS, el máximo en ARS es 1.600.000.000).
+  - El front puede calcularlo con los `usdRates` que ya tiene para avisar antes de enviar, pero **el back es el que decide**: si la cotización cambió entre que el usuario mira y confirma, responde `422` con el máximo actualizado en el mensaje (ej. `"El monto máximo por depósito es 1.600.000.000 ARS (equivale a 1.000.000 USD)"`).
+  - Si las APIs externas fallan, usa la última cotización guardada. Si la moneda nunca tuvo cotización, responde `503`.
 - `currency`: `ARS`, `COP`, `EUR` o `USD` (acepta minúsculas).
 - `transaction` tiene la forma de `Transaction` (abajo) con `type: 'deposit'` y `fromCurrency` / `fromAmount` en `null`. `balance` es el saldo de esa moneda después del depósito: sirve para actualizar la pantalla sin volver a pedir el summary.
 - **Doble clic:** cada request es un depósito nuevo. El front deshabilita el botón hasta recibir la respuesta.
