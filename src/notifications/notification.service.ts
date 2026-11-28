@@ -4,10 +4,13 @@
     - Ninguna función lanza error. Si SES falla, se loguea y se sigue:
       una operación de dinero nunca se cae por un mail.
     - Se llaman después de confirmar la operación en la base.
-    - El cliente de SES se puede reemplazar con setSesClient (lo usan los tests). */
+    - El cliente de SES se puede reemplazar con setSesClient (lo usan los tests).
+    - La región y las credenciales no se pasan desde el código: el SDK de AWS
+      las lee solo de AWS_REGION, AWS_ACCESS_KEY_ID y AWS_SECRET_ACCESS_KEY. */
 
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import { env } from "../config/env";
+import { formatAmount, formatRate } from "../utils/format";
 
 export interface Recipient {
     email: string;
@@ -16,25 +19,17 @@ export interface Recipient {
 
 let client: SESClient | null = null;
 
-// Permite reemplazar el cliente (tests). Con null, se vuelve a crear desde el .env.
+// Permite reemplazar el cliente (tests). Con null, se vuelve a crear con las variables AWS_*.
 export const setSesClient = (newClient: SESClient | null): void => {
     client = newClient;
 };
 
 const getClient = (): SESClient => {
     if (!client) {
-        client = new SESClient({
-            region: env.awsRegion,
-            credentials: {
-                accessKeyId: env.awsAccessKeyId ?? "",
-                secretAccessKey: env.awsSecretAccessKey ?? "",
-            },
-        });
+        client = new SESClient({});
     }
     return client;
 };
-
-const formatAmount = (amount: number): string => amount.toFixed(2);
 
 const sendMail = async (to: string, subject: string, body: string): Promise<void> => {
     try {
@@ -83,7 +78,8 @@ export const notifyExchange = async (
         to.email,
         "Intercambio realizado",
         `Hola ${to.name}, cambiaste ${formatAmount(data.amountFrom)} ${data.currencyFrom} ` +
-        `por ${formatAmount(data.amountTo)} ${data.currencyTo} a una tasa de ${data.rate}.`
+        `por ${formatAmount(data.amountTo)} ${data.currencyTo} ` +
+        `(1 ${data.currencyFrom} = ${formatRate(data.rate)} ${data.currencyTo}).`
     );
 };
 

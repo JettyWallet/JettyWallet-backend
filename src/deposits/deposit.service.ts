@@ -4,6 +4,7 @@ import pool from "../config/database";
 import { DEPOSIT_RULES } from "../config/wallet";
 import { getQuote } from "../currency/currency.service";
 import { AppError } from "../utils/appError";
+import { formatAmount } from "../utils/format";
 import { withTransaction } from "../utils/withTransaction";
 import {
     TRANSACTION_COLUMNS,
@@ -20,9 +21,6 @@ export interface DepositResult {
 
 // Decimales de las cotizaciones al calcular (los mismos que transactions.rate).
 const RATE_DECIMALS = 12;
-
-const formatAmount = (value: string): string =>
-    Number(value).toLocaleString("es-AR", { maximumFractionDigits: 2 });
 
 /*  Compara `amountText` con el máximo por depósito en `currency`: el
     equivalente a DEPOSIT_RULES.maxUsd según la última cotización guardada,
@@ -84,7 +82,7 @@ export const createDeposit = async (
         const usdNote =
             currency === "USD"
                 ? ""
-                : ` (equivale a ${formatAmount(String(DEPOSIT_RULES.maxUsd))} USD)`;
+                : ` (equivale a ${formatAmount(DEPOSIT_RULES.maxUsd)} USD)`;
         throw new AppError(
             `El monto máximo por depósito es ${formatAmount(max)} ${currency}${usdNote}`,
             422

@@ -46,36 +46,58 @@ describe("notificaciones por mail (SES simulado)", () => {
         expect(input.Source).toBe("no-reply@jetty.test");
         expect(input.Destination?.ToAddresses).toEqual(["ana@mail.com"]);
         expect(input.Message?.Subject?.Data).toBe("Depósito recibido");
-        expect(input.Message?.Body?.Text?.Data).toContain("500.00 ARS");
+        expect(input.Message?.Body?.Text?.Data).toBe(
+            "Hola Ana Pérez, acreditamos un depósito de 500 ARS en tu billetera de Jetty."
+        );
     });
 
-    it("notifyExchange incluye montos, monedas y tasa", async () => {
+    it("notifyDeposit muestra los montos con formato es-AR", async () => {
+        await notifyDeposit(ana, { amount: 1_600_000.5, currency: "ARS" });
+
+        const body = sentCommand(fake.send).input.Message?.Body?.Text?.Data;
+        expect(body).toContain("1.600.000,50 ARS");
+    });
+
+    it("notifyExchange incluye montos, monedas y cotización", async () => {
         await notifyExchange(ana, {
             amountFrom: 100,
             currencyFrom: "USD",
-            amountTo: 125000,
-            currencyTo: "COP",
-            rate: 1250,
+            amountTo: 160_550,
+            currencyTo: "ARS",
+            rate: 1605.5,
         });
 
         const body = sentCommand(fake.send).input.Message?.Body?.Text?.Data;
-        expect(body).toContain("100.00 USD");
-        expect(body).toContain("125000.00 COP");
-        expect(body).toContain("1250");
+        expect(body).toBe(
+            "Hola Ana Pérez, cambiaste 100 USD por 160.550 ARS (1 USD = 1.605,5 ARS)."
+        );
+    });
+
+    it("notifyExchange redondea la cotización sin perder las cotizaciones chicas", async () => {
+        await notifyExchange(ana, {
+            amountFrom: 50_000,
+            currencyFrom: "ARS",
+            amountTo: 31.14,
+            currencyTo: "USD",
+            rate: 0.000622858922454,
+        });
+
+        const body = sentCommand(fake.send).input.Message?.Body?.Text?.Data;
+        expect(body).toContain("(1 ARS = 0,000622859 USD)");
     });
 
     it("notifyTransferSent indica a quién se envió", async () => {
         await notifyTransferSent(ana, { amount: 20, currency: "EUR", recipientName: "Bruno Gil" });
 
         const body = sentCommand(fake.send).input.Message?.Body?.Text?.Data;
-        expect(body).toContain("20.00 EUR a Bruno Gil");
+        expect(body).toContain("enviaste 20 EUR a Bruno Gil");
     });
 
     it("notifyTransferReceived indica quién envió", async () => {
         await notifyTransferReceived(ana, { amount: 20, currency: "EUR", senderName: "Bruno Gil" });
 
         const body = sentCommand(fake.send).input.Message?.Body?.Text?.Data;
-        expect(body).toContain("Bruno Gil te envió 20.00 EUR");
+        expect(body).toContain("Bruno Gil te envió 20 EUR");
     });
 
     it("si SES falla, la función no lanza error y lo loguea", async () => {
