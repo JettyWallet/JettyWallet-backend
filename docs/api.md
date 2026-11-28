@@ -6,7 +6,7 @@ Acuerdo entre backend y frontend. **Antes de programar un endpoint, se agrega ac
 
 | Tema | Acuerdo |
 |---|---|
-| URL base | `/api`. El front configura `VITE_API_URL`: `http://localhost:3000/api` en local y `https://jettywallet-backend-production.up.railway.app/api` en producción |
+| URL base | `/api`. El front configura `VITE_API_URL=/api` en local y en producción: el proxy de Vite (local) y el rewrite de Vercel (producción) lo reenvían al back. Ver "Sesión" abajo |
 | Formato | JSON, propiedades en `camelCase` |
 | Autenticación | Cookie httpOnly `jetty_session` que setean login y register y borra logout. El front la manda con `credentials: 'include'` y nunca la lee. Vence en 1 hora. Ver "Sesión" abajo |
 | Errores | Siempre `{ "message": "texto para el usuario" }` |
@@ -25,7 +25,9 @@ Acuerdo entre backend y frontend. **Antes de programar un endpoint, se agrega ac
 | `404` | Recurso o ruta inexistente |
 | `409` | Conflicto (por ejemplo, email ya registrado) |
 | `422` | Datos válidos que incumplen una regla de negocio (por ejemplo, saldo insuficiente) |
+| `429` | Demasiados pedidos en poco tiempo (por ejemplo, más de 20 búsquedas de usuario por minuto) |
 | `500` | Error inesperado del servidor |
+| `503` | Un servicio externo no está disponible (por ejemplo, no hay cotización) |
 
 ## Endpoints
 
@@ -43,6 +45,7 @@ Acuerdo entre backend y frontend. **Antes de programar un endpoint, se agrega ac
 | `POST` | `/api/deposits` | Sí | Body `{ currency, amount }`. Responde `201 { transaction, balance }`. `400` si la moneda o el monto son inválidos, `422` si supera el máximo, `503` si no hay cotización para la moneda. Ver notas |
 | `POST` | `/api/exchange` | Sí | Body `{ fromCurrency, toCurrency, amount }`. Responde `201 { transaction, balances }`. `400` si los datos son inválidos o las monedas son iguales, `422` si no alcanza el saldo o el monto convertido da 0, `503` si no hay cotización. Ver notas |
 | `GET` | `/api/transactions` | Sí | Query opcional `limit`, `before`, `type`, `currency`. Responde `200 Transaction[]`, más recientes primero. `400` si algún parámetro es inválido. Ver notas |
+| `GET` | `/api/users/lookup` | Sí | Query `email`. Responde `200 { name, email }` del destinatario de una transferencia. `400` si falta el email o es el propio, `404` si no existe, `429` si se superan 20 búsquedas por minuto. Ver notas |
 
 `user` en register y login tiene la misma forma que `/me`: `{ id, name, email }`.
 
@@ -88,7 +91,64 @@ Notas de `/api/transactions`:
 - **Filtros opcionales** (se pueden combinar entre sí y con `before`):
   - `type`: `deposit`, `exchange`, `transfer_in` o `transfer_out`.
   - `currency`: movimientos donde **entra o sale** esa moneda (ej. `?currency=USD` incluye un intercambio USD → EUR). Acepta minúsculas.
-- `description` trae un texto para mostrar: `"Saldo de bienvenida"`, `"Depósito"`, `"Intercambio"`.
+- `description` trae un texto para mostrar: `"Saldo de bienvenida"`, `"Depósito"`, `"Intercambio"` y, cuando estén las transferencias, `"Transferencia a Bruno Gil"` / `"Transferencia de Ana Pérez"`.
+
+Notas de `/api/users/lookup`:
+- Sirve para mostrar el nombre del destinatario antes de confirmar una transferencia: `GET /api/users/lookup?email=bruno@mail.com` → `200 { "name": "Bruno Gil", "email": "bruno@mail.com" }`. Nunca devuelve el id ni otros datos.
+- El email se normaliza (sin espacios, en minúsculas): `" BRUNO@mail.com "` encuentra a `bruno@mail.com`. Conviene encodearlo en la URL (`encodeURIComponent`).
+- Errores (siempre `{ message }`):
+  - `400` `"Ingresá un email para buscar"`: falta el parámetro o está vacío.
+  - `400` `"No podés transferirte a vos mismo"`: es el email de la sesión.
+  - `404` `"No existe un usuario con ese email"`.
+  - `429` `"Demasiadas búsquedas, probá en un minuto"`: más de 20 búsquedas por minuto del mismo usuario. Evita que se use para adivinar qué emails están registrados. El front busca al confirmar el email (botón o al salir del campo), no en cada tecla.
+- Encontrar al usuario no reserva nada: la transferencia vuelve a validar el destinatario.
+
+### Contrato definido (en desarrollo)
+
+Endpoints con el contrato acordado pero todavía no disponibles: el front puede armar la pantalla con esta forma.
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `POST` | `/api/transfers` | Sí | Body `{ email, currency, amount }`. Responde `201 { transaction, balance }`. `400` si los datos son inválidos o el email es el propio, `404` si no existe el destinatario, `422` si no alcanza el saldo. Ver notas |
+
+Notas de `/api/transfers`:
+- Transfiere a otro usuario de Jetty, identificado por su **email**. Antes de confirmar, el front muestra el nombre del destinatario con `/api/users/lookup`.
+- Request:
+  ```json
+  { "email": "bruno@mail.com", "currency": "ARS", "amount": 5000 }
+  ```
+  - `email`: se normaliza igual que en el lookup (sin espacios, en minúsculas).
+  - `currency`: `ARS`, `COP`, `EUR` o `USD` (acepta minúsculas).
+  - `amount`: mismas reglas que el depósito (mayor a 0, hasta 2 decimales, como número), pero **sin máximo**: el límite es el saldo disponible, igual que en el intercambio.
+- **La moneda no cambia:** si se envían ARS, llegan ARS. Si el usuario no tiene saldo suficiente en esa moneda, primero tiene que hacer un intercambio o un depósito.
+- Sin comisión.
+- Response `201`, con la misma forma que el depósito:
+  ```json
+  {
+      "transaction": {
+          "id": "…",
+          "type": "transfer_out",
+          "fromCurrency": "ARS",
+          "fromAmount": 5000,
+          "toCurrency": "ARS",
+          "toAmount": 5000,
+          "description": "Transferencia a Bruno Gil",
+          "createdAt": "2026-11-28T14:30:00.000Z"
+      },
+      "balance": { "currency": "ARS", "amount": 45000 }
+  }
+  ```
+  - `transaction` es el movimiento de quien envía (`transfer_out`). `balance` es su saldo de esa moneda después de la transferencia: sirve para actualizar la pantalla sin volver a pedir el summary.
+  - Quien recibe ve en su historial un `transfer_in` con `description: "Transferencia de Ana Pérez"`.
+  - En `/api/transactions`, `type=transfer_out` y `type=transfer_in` filtran enviadas y recibidas.
+- Errores (siempre `{ message }`):
+  - `400`: email, moneda o monto inválidos.
+  - `400` `"No podés transferirte a vos mismo"`: es el email de la sesión (mismo mensaje que el lookup).
+  - `404` `"No existe un usuario con ese email"` (mismo mensaje que el lookup).
+  - `422` `"No tenés saldo suficiente en ARS para esta transferencia"`.
+- Las dos partes (débito, crédito y los dos movimientos) se guardan juntas: si algo falla, no se mueve nada.
+- Después de confirmar, se envía un mail a quien envía y otro a quien recibe. Si el mail falla, la transferencia no se deshace.
+- **Doble clic:** cada request es una transferencia nueva. El front deshabilita el botón hasta recibir la respuesta.
 
 ### Planificados
 
@@ -97,7 +157,6 @@ Las formas de respuesta salen de lo que el front ya consume (`src/types/` del re
 | Método | Ruta | Auth | Fase | Respuesta |
 |---|---|---|---|---|
 | `GET` | `/api/currencies` | No | 2 | Monedas disponibles |
-| `POST` | `/api/transfers` | Sí | 3 | Transferencia a otro usuario (por email o número de cuenta) |
 | — | `/api/savings-goals/...` | Sí | 4 | Metas de ahorro |
 
 ### Tipos que espera el front
@@ -129,7 +188,7 @@ interface Transaction {
     toCurrency: CurrencyCode
     fromAmount: number | null              // null en depósitos
     toAmount: number
-    description: string | null             // texto para mostrar, ej. "Saldo de bienvenida"
+    description: string | null             // texto para mostrar, ej. "Saldo de bienvenida", "Transferencia a Bruno Gil"
     createdAt: string                      // ISO
 }
 ```
